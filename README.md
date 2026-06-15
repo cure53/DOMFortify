@@ -1,5 +1,10 @@
 # DOMFortify
 
+[![CI](https://github.com/cure53/DOMFortify/actions/workflows/ci.yml/badge.svg)](https://github.com/cure53/DOMFortify/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge)](https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify)
+[![License: MPL-2.0 OR Apache-2.0](https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg)](LICENSE)
+
 DOMFortify turns on Trusted Types for a page and quietly takes over the browser's `default` policy,
 so that old, vulnerable code like `el.innerHTML = location.hash` gets sanitized before it ever hits
 the DOM. You don't touch the code. You don't even need to know where the bug is.
