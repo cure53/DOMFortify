@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify fixture: no enforcement (control)</title>
+
+    <!--
+      VULN:   out.innerHTML = location.hash   (reflected DOM-XSS)
+      DEPLOY: none      # no CSP at all: no header, no <meta>, no injection
+      EXPECT: vulnerable
+      Lesson: DOMFortify is loaded, but with nothing to turn Trusted Types on it
+      cannot help. status().protected is false and the XSS fires. The CSP is the
+      thing that does the enforcing - the library only supplies the policy.
+    -->
+
+    <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+    <script src="/dist/fortify.js"></script>
+  </head>
+  <body>
+    <h1>no enforcement (control)</h1>
+    <div id="out"></div>
+
+    <!-- Deliberately-vulnerable application code. Never sanitizes; never changed. -->
+    <script>
+      document.getElementById('out').innerHTML = decodeURIComponent(location.hash.slice(1));
+    </script>
+  </body>
+</html>

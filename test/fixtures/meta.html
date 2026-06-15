@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify fixture: meta deployment</title>
+
+    <!--
+      VULN:   out.innerHTML = location.hash   (reflected DOM-XSS)
+      DEPLOY: meta      # a parse-time CSP <meta> turns Trusted Types enforcement on
+      EXPECT: protected
+      Lesson: a <meta> CSP works when the parser sees it (before any sink). The
+      sink below is unchanged; the browser routes it through DOMFortify's default
+      policy and the payload is sanitized.
+    -->
+
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+
+    <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+    <script src="/dist/fortify.js"></script>
+  </head>
+  <body>
+    <h1>meta deployment</h1>
+    <div id="out"></div>
+
+    <script>
+      document.getElementById('out').innerHTML = decodeURIComponent(location.hash.slice(1));
+    </script>
+  </body>
+</html>

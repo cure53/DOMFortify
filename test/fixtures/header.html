@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify fixture: header deployment</title>
+
+    <!--
+      VULN:   out.innerHTML = location.hash   (reflected DOM-XSS)
+      DEPLOY: header    # NO <meta> here: the server sends the CSP as a response header
+      EXPECT: protected
+      Lesson: the sturdiest deployment. The page carries no CSP markup at all; the
+      enforcement comes from the response header
+        Content-Security-Policy: require-trusted-types-for 'script'; trusted-types default dompurify;
+      (the test adds it; in production your server/CDN does). A header cannot be
+      neutralized by markup injected above it, unlike a <meta>.
+    -->
+
+    <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+    <script src="/dist/fortify.js"></script>
+  </head>
+  <body>
+    <h1>header deployment</h1>
+    <div id="out"></div>
+
+    <script>
+      document.getElementById('out').innerHTML = decodeURIComponent(location.hash.slice(1));
+    </script>
+  </body>
+</html>

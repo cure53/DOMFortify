@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify fixture: insertAdjacentHTML sink</title>
+
+    <!--
+      VULN:   out.insertAdjacentHTML('beforeend', location.hash)   (reflected DOM-XSS)
+      DEPLOY: meta
+      EXPECT: protected
+      Lesson: a different sink, same protection. insertAdjacentHTML is also a Trusted
+      Types sink, so under enforcement it is routed through the default policy too.
+    -->
+
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+
+    <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+    <script src="/dist/fortify.js"></script>
+  </head>
+  <body>
+    <h1>insertAdjacentHTML sink</h1>
+    <div id="out"></div>
+
+    <script>
+      document.getElementById('out').insertAdjacentHTML('beforeend', decodeURIComponent(location.hash.slice(1)));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify fixture: meta auto-injection (best-effort)</title>
+
+    <!--
+      VULN:   out.innerHTML = location.hash   (reflected DOM-XSS)
+      DEPLOY: auto-inject   # no header, no hand-placed <meta>: INJECT_META is on
+      EXPECT: best-effort
+      Lesson: the last-resort deployment. With neither a header nor a <meta> you can
+      ask DOMFortify to inject the <meta> itself. This only has a chance when the
+      library runs during the initial parse (as below, a blocking script in <head>),
+      and even then status().protected reads false because enforcement is probed
+      before the written <meta> is parsed. The promise is honesty, not a guarantee:
+      DOMFortify never reports protected unless it truly is. Prefer a header or a
+      hand-placed <meta>.
+    -->
+
+    <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+    <script>
+      window.DOMFortifyConfig = { INJECT_META: true };
+    </script>
+    <script src="/dist/fortify.js"></script>
+  </head>
+  <body>
+    <h1>meta auto-injection (best-effort)</h1>
+    <div id="out"></div>
+
+    <script>
+      document.getElementById('out').innerHTML = decodeURIComponent(location.hash.slice(1));
+    </script>
+  </body>
+</html>

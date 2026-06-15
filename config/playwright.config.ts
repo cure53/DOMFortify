@@ -7,7 +7,7 @@ const baseURL = `http://127.0.0.1:${PORT}`;
 // ES module imports resolve (file:// would be blocked by CORS).
 export default defineConfig({
   testDir: '../test',
-  testMatch: /browser-runner\.ts/,
+  testMatch: [/browser-runner\.ts/, /\.spec\.ts$/],
   reporter: 'list',
   use: { baseURL, headless: true },
   webServer: {

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify fixture: createContextualFragment sink</title>
+
+    <!--
+      VULN:   range.createContextualFragment(location.hash) -> appended   (reflected DOM-XSS)
+      DEPLOY: meta
+      EXPECT: protected
+      Lesson: yet another sink. Range.createContextualFragment is a Trusted Types
+      sink as well; the fragment built from attacker input is sanitized before it
+      reaches the live DOM.
+    -->
+
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+
+    <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+    <script src="/dist/fortify.js"></script>
+  </head>
+  <body>
+    <h1>createContextualFragment sink</h1>
+    <div id="out"></div>
+
+    <script>
+      var range = document.createRange();
+      range.selectNode(document.body);
+      var frag = range.createContextualFragment(decodeURIComponent(location.hash.slice(1)));
+      document.getElementById('out').appendChild(frag);
+    </script>
+  </body>
+</html>
