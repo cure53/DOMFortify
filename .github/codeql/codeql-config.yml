@@ -1,0 +1,12 @@
+# Scope CodeQL to the hand-written library source.
+#
+# The repo also ships deliberately-vulnerable example code - the /demos pages and
+# the /website demo intentionally do `el.innerHTML = dirty` to show DOMFortify
+# neutralizing it. Scanning those would raise XSS alerts for code that is unsafe
+# on purpose. dist/ is generated (it just mirrors src), test/ is the harness, and
+# config/ is build tooling - none are the shipped attack surface. Analyzing only
+# src/ keeps the dashboard about the actual library.
+name: DOMFortify CodeQL config
+
+paths:
+  - src

@@ -91,10 +91,18 @@ function urlMatches(pattern: UrlPattern | UrlPattern[] | undefined, url: string)
 // enforcement on - and only for content parsed afterwards. A node appended after parsing is ignored by
 // the CSP engine; we still add it (harmless) but report that injection did NOT take. Returns true only
 // when written during parse.
+//
+// `content` is the trusted CSP directive built from config (the derived default, or META_DIRECTIVE).
+// META_DIRECTIVE is developer-controlled and is expected to be trusted, but since this path reaches
+// document.write we still strip the characters that could break out of the content="..." attribute or
+// the <meta> tag. A real CSP directive never contains ", <, >, or newlines (single quotes, e.g.
+// 'script', are kept - they are harmless inside the double-quoted attribute), so this is lossless for
+// valid input and neutralizes a hostile or malformed directive. Defense in depth.
 function injectMeta(content: string): boolean {
   if (!doc) return false;
   const d = doc as Document & { write?: (s: string) => void; readyState?: string };
-  const tag = '<meta http-equiv="Content-Security-Policy" content="' + content + '">';
+  const safe = content.replace(/["<>\r\n]/g, '');
+  const tag = '<meta http-equiv="Content-Security-Policy" content="' + safe + '">';
   if (d.readyState === 'loading' && typeof d.write === 'function') {
     try {
       d.write(tag);

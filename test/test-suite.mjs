@@ -404,6 +404,24 @@ QUnit.module('url targeting & meta injection', (hooks) => {
     );
   });
 
+  QUnit.test('a hostile META_DIRECTIVE cannot break out of the written meta tag', async (assert) => {
+    const dp = { sanitize: (s) => s };
+    const doc = makeDoc({ readyState: 'loading' });
+    await install(
+      { tt: makeTT(), doc, DOMPurify: dp },
+      { INJECT_META: true, META_DIRECTIVE: 'default x"><script>alert(1)</script>' },
+    );
+    const written = doc._writes[0];
+    assert.false(written.includes('<script'), 'no injected <script tag survives');
+    assert.false(written.includes('</script'), 'no injected closing tag survives');
+    assert.strictEqual(
+      (written.match(/"/g) || []).length,
+      4,
+      'no extra quote: the content attribute cannot be closed early (http-equiv + content = 4 quotes)',
+    );
+    assert.true(written.endsWith('">'), 'the tag closes normally');
+  });
+
   QUnit.test('no INJECT_META means no write and no append', async (assert) => {
     const dp = { sanitize: (s) => s };
     const doc = makeDoc({ readyState: 'loading' });
