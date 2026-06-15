@@ -10,6 +10,9 @@ on:
   # Keeps the Maintained check fresh and re-evaluates after CodeQL has settled.
   schedule:
     - cron: '24 17 * * *'
+  # Lets a maintainer trigger the first run (and re-runs) by hand from the Actions
+  # tab, instead of waiting for the daily cron - useful to publish the first report.
+  workflow_dispatch:
   # NOTE: no 'push' trigger on purpose - running at merge time races the CodeQL
   # scan of the just-merged commit and makes the SAST check read as unchecked.
 
@@ -43,9 +46,10 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
-          # A fine-grained PAT enables the Branch-Protection check on a public repo.
-          # Create it per https://github.com/ossf/scorecard-action#authentication-with-fine-grained-pat-optional
-          repo_token: ${{ secrets.SCORECARD_TOKEN }}
+          # A fine-grained PAT enables the Branch-Protection check on a public repo;
+          # without it we fall back to the built-in token so the run still publishes.
+          # Create the PAT per https://github.com/ossf/scorecard-action#authentication-with-fine-grained-pat-optional
+          repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}
           publish_results: true
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
