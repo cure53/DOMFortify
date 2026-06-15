@@ -25,28 +25,18 @@ import { join } from 'node:path';
 const FIXTURE_DIR = join(process.cwd(), 'test', 'fixtures');
 const CSP = "require-trusted-types-for 'script'; trusted-types default dompurify;";
 
-// Auto-firing vectors: each runs without interaction and calls alert(). More than just <img> so a
-// sanitizer that special-cases one element can't pass by luck.
-const AUTO_FIRING: ReadonlyArray<readonly [string, string]> = [
-  ['img/onerror', '<img src=x onerror=alert(1)>'],
-  ['svg/onload', '<svg onload=alert(1)></svg>'],
-  ['svg/animate-onbegin', '<svg><animate onbegin=alert(1) attributeName=x dur=1s></svg>'],
-  ['iframe/onload', '<iframe onload=alert(1)></iframe>'],
-];
-
-// Mutation-XSS: strings that look inert but mutate into an executing node when the browser parses
-// (and a naive sanitizer re-serializes) them. The classic DOMPurify cases.
-const MXSS: ReadonlyArray<readonly [string, string]> = [
-  [
-    'mglyph+style',
-    '<math><mtext><table><mglyph><style><img src=x onerror=alert(1)></style></mglyph></table></mtext></math>',
-  ],
-  ['noscript', '<noscript><p title="</noscript><img src=x onerror=alert(1)>">'],
-  ['svg+style', '<svg></p><style><a id="</style><img src=x onerror=alert(1)>">'],
-  ['form+math', '<form><math><mtext></form><form><mglyph><style></math><img src=x onerror=alert(1)>'],
-];
-
 const REFERENCE = '<img src=x onerror=alert(1)>'; // the representative payload for the deployment matrix
+
+interface Vector {
+  name: string;
+  kind: string;
+  firesUnprotected: boolean;
+  payload: string;
+}
+// The corpus lives in JSON so it is easy to read and to extend; many vectors are adapted from the
+// DOMPurify test suite. Every vector is asserted neutralized under DOMFortify; firesUnprotected ones
+// must also execute on the unprotected page (which proves they are real, and that the detector sees).
+const VECTORS: Vector[] = JSON.parse(readFileSync(join(FIXTURE_DIR, 'vectors.json'), 'utf8')).vectors;
 
 function directive(src: string, key: string): string | undefined {
   return src.match(new RegExp(key + ':\\s*([\\w-]+)'))?.[1];
@@ -133,27 +123,21 @@ for (const file of readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.html'))) 
   });
 }
 
-// --- Attack-vector battery -----------------------------------------------------------------------
-// Auto-firing vectors are checked both ways: they genuinely fire when unprotected (proving each is a
-// real, working XSS and that the detector sees it), and are neutralized under DOMFortify.
-for (const [name, payload] of AUTO_FIRING) {
-  test(`vector ${name}: fires on the unprotected page`, async ({ page }: { page: Dialoged }) => {
-    const { fired } = await visit(page, 'unprotected.html', payload);
-    expect(fired, `${name} should execute when nothing is enforcing`).toBe(true);
-  });
-  test(`vector ${name}: neutralized under DOMFortify`, async ({ page }: { page: Dialoged }) => {
-    const { fired, status } = await visit(page, 'meta.html', payload);
+// --- Attack-vector battery (corpus-driven) -------------------------------------------------------
+// Every vector must be neutralized under DOMFortify. The deterministic ones must also fire on the
+// unprotected page - proving they are real, working XSS and that the detector catches them. mXSS
+// vectors are not required to fire unprotected: modern browsers have fixed several at the parser
+// level, so a non-fire there is a browser win, not a DOMFortify bug.
+for (const v of VECTORS) {
+  if (v.firesUnprotected) {
+    test(`vector ${v.kind}/${v.name}: fires on the unprotected page`, async ({ page }: { page: Dialoged }) => {
+      const { fired } = await visit(page, 'unprotected.html', v.payload);
+      expect(fired, `${v.name} should execute when nothing is enforcing`).toBe(true);
+    });
+  }
+  test(`vector ${v.kind}/${v.name}: neutralized under DOMFortify`, async ({ page }: { page: Dialoged }) => {
+    const { fired, status } = await visit(page, 'meta.html', v.payload);
     expect(status?.protected, 'page should be protected').toBe(true);
-    expect(fired, `${name} must not execute under enforcement`).toBe(false);
-  });
-}
-
-// mXSS payloads are asserted blocked under DOMFortify. We do not assert they fire unprotected: modern
-// browsers have fixed several at the parser level, so a non-fire there is a browser win, not our bug.
-for (const [name, payload] of MXSS) {
-  test(`mXSS ${name}: neutralized under DOMFortify`, async ({ page }: { page: Dialoged }) => {
-    const { fired, status } = await visit(page, 'meta.html', payload);
-    expect(status?.protected, 'page should be protected').toBe(true);
-    expect(fired, `mXSS ${name} must not execute under enforcement`).toBe(false);
+    expect(fired, `${v.name} must not execute under enforcement`).toBe(false);
   });
 }

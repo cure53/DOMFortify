@@ -1,0 +1,167 @@
+{
+  "_note": "Curated DOM-XSS / mutation-XSS vectors for the e2e battery. Many are adapted from the DOMPurify test corpus (cure53/DOMPurify, MPL-2.0 OR Apache-2.0). Every vector is asserted neutralized under DOMFortify; firesUnprotected marks the deterministic ones that must also execute on the unprotected page.",
+  "vectors": [
+    {
+      "name": "img/onerror",
+      "kind": "auto",
+      "firesUnprotected": true,
+      "payload": "<img src=x onerror=alert(1)>"
+    },
+    {
+      "name": "svg/onload",
+      "kind": "auto",
+      "firesUnprotected": true,
+      "payload": "<svg onload=alert(1)></svg>"
+    },
+    {
+      "name": "svg/animate-onbegin",
+      "kind": "auto",
+      "firesUnprotected": true,
+      "payload": "<svg><animate onbegin=alert(1) attributeName=x dur=1s></svg>"
+    },
+    {
+      "name": "iframe/onload",
+      "kind": "auto",
+      "firesUnprotected": true,
+      "payload": "<iframe onload=alert(1)></iframe>"
+    },
+    {
+      "name": "video/source-onerror",
+      "kind": "auto",
+      "firesUnprotected": false,
+      "payload": "<video><source onerror=alert(1)></video>"
+    },
+    {
+      "name": "audio/onerror",
+      "kind": "auto",
+      "firesUnprotected": false,
+      "payload": "<audio src=x onerror=alert(1)></audio>"
+    },
+    {
+      "name": "input/autofocus-onfocus",
+      "kind": "auto",
+      "firesUnprotected": false,
+      "payload": "<input autofocus onfocus=alert(1)>"
+    },
+    {
+      "name": "mglyph+style/table",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<math><mtext><table><mglyph><style><img src=x onerror=alert(1)></style></mglyph></table></mtext></math>"
+    },
+    {
+      "name": "noscript/title",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">"
+    },
+    {
+      "name": "noscript/comment",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<b><noscript><!-- </noscript><img src=x onerror=alert(1) --></noscript>"
+    },
+    {
+      "name": "noscript/attr",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<b><noscript><a alt=\"</noscript><img src=x onerror=alert(1)>\"></noscript>"
+    },
+    {
+      "name": "svg/foster-style",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<svg></p><style><a id=\"</style><img src=x onerror=alert(1)>\">"
+    },
+    {
+      "name": "svg/p-style-g-title",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<svg><p><style><g title=\"</style><img src=x onerror=alert(1)>\">"
+    },
+    {
+      "name": "svg/textarea-title-style",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<svg></p><textarea><title><style></textarea><img src=x onerror=alert(1)></style></title></svg>"
+    },
+    {
+      "name": "svg/title-template-style",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<svg></p><title><template><style></title><img src=x onerror=alert(1)>"
+    },
+    {
+      "name": "math/textarea-mi-style",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<math></p><textarea><mi><style></textarea><img src=x onerror=alert(1)></mi></math>"
+    },
+    {
+      "name": "form+math/mglyph",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<form><math><mtext></form><form><mglyph><style><img src=x onerror=alert(1)></style>"
+    },
+    {
+      "name": "form+math/mglyph-svg-path",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<form><math><mtext></form><form><mglyph><svg><mtext><style><path id=\"</style><img onerror=alert(1) src>\">"
+    },
+    {
+      "name": "style/slash",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<b><style><style/><img src=x onerror=alert(1)></style>"
+    },
+    {
+      "name": "style/slashes",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<b><style><style////><img src=x onerror=alert(1)></style>"
+    },
+    {
+      "name": "style/comment-img",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<style><img src=\"</style><img src=x onerror=alert(1)//\">"
+    },
+    {
+      "name": "comment/img",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<!--<img src=\"--><img src=x onerror=alert(1)//\">"
+    },
+    {
+      "name": "cdata/svg-image",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<svg><![CDATA[><image xlink:href=\"]]><img src=x onerror=alert(1)//\"></svg>"
+    },
+    {
+      "name": "template/nested",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<body><template><s><template><s><img src=x onerror=alert(1)></s></template></s></template>"
+    },
+    {
+      "name": "select/template",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<select><template><img src=x onerror=alert(1)></template></select>"
+    },
+    {
+      "name": "option/select-style",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<option><style></option></select><b><img src=x onerror=alert(1)></style></option>"
+    },
+    {
+      "name": "textarea/comment",
+      "kind": "mxss",
+      "firesUnprotected": false,
+      "payload": "<textarea>x</textarea><!--</textarea><img src=x onerror=alert(1)>-->"
+    }
+  ]
+}

@@ -39,15 +39,19 @@ would self-host or use a CDN. Run them with `npm run test:browser` (needs `npx p
 
 ## Attack vectors and detection
 
-`deployment.spec.ts` does not trust a single payload. Alongside the deployment matrix it runs a
-battery against `meta.html` (and, for the auto-firing ones, `unprotected.html`):
+`deployment.spec.ts` runs an attack-vector battery from `vectors.json` - a human-readable,
+easy-to-extend corpus of DOM-XSS and mutation-XSS payloads (many adapted from the DOMPurify test
+suite). Each entry is `{ name, kind, firesUnprotected, payload }`:
 
-- **Auto-firing vectors** - `img/onerror`, `svg/onload`, `svg` SMIL `animate/onbegin`, and
-  `iframe/onload`. Each is checked to genuinely fire on the unprotected page (so it is a real XSS,
-  not a no-op) and to be neutralized under DOMFortify.
-- **Mutation XSS** - the classic `mglyph`/`style`, `noscript`, `svg`/`style`, and `form`/`math`
-  cases that mutate into an executing node when parsed. Asserted blocked under DOMFortify. (They are
-  not required to fire unprotected: modern browsers have fixed several at the parser level.)
+- **Every** vector is asserted _neutralized_ under DOMFortify (run against `meta.html`).
+- Vectors flagged `firesUnprotected` (the deterministic simple handlers) are _also_ asserted to fire
+  on `unprotected.html` - proving each is a real, working XSS and that the detector sees it.
+
+The corpus covers simple auto-firing handlers beyond `<img>` (`svg/onload`, SMIL `animate/onbegin`,
+`iframe/onload`, media `onerror`, `autofocus/onfocus`) and the classic mutation/namespace-confusion
+families: `mglyph`/`style`, `noscript`, foster-parented `svg`/`style`, `form`/`math`/`mglyph`,
+`style` self-closing tricks, comment and CDATA breakouts, `template`/`select`/`option` nesting, and
+more. To add a vector, append one line to `vectors.json`.
 
 Execution is caught by overriding `alert`/`confirm`/`prompt` before any page script runs, with a
 native-dialog listener as a backstop. A `canary` test requires a known-good XSS to fire on the
