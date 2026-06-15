@@ -11,6 +11,11 @@ and the browser routes every HTML sink through a sanitizer for you.
 > **Not secure. Just less broken.** This is a seatbelt for code you can't rewrite, not a reason to
 > stop rewriting it.
 
+## Is there a demo?
+
+Of course there is. [Play with DOMFortify](https://cure53.de/fortify) - throw payloads at a
+deliberately broken page and watch the browser neutralize them before they reach the DOM.
+
 ## How it works
 
 Trusted Types lets a page register one `default` policy that the browser calls for every dangerous
