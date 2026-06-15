@@ -12,7 +12,7 @@ the DOM. You don't touch the code. You don't even need to know where the bug is.
 It's for the sites you can't easily fix: complex apps or legacy apps nobody wants to touch, the third-party widget you
 can't patch, the 2000+ `innerHTML` sinks written before anyone had heard of XSS. 
 
-Ship the policy once and the browser routes every HTML sink through a sanitizer for you.
+**Just ship the policy, and the browser automtically protects every HTML sink with DOMPurify or other sanitizers.**
 
 ## Is there a demo?
 
