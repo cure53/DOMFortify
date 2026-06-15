@@ -41,11 +41,34 @@ function makeTT(opts = {}) {
   };
 }
 
-function makeDoc({ enforced = true } = {}) {
+function makeDoc({ enforced = true, readyState = 'complete' } = {}) {
+  const writes = [];
+  const appended = [];
   return {
+    readyState,
+    _writes: writes,
+    _appended: appended,
+    write(s) {
+      writes.push(s);
+    },
+    head: {
+      appendChild(n) {
+        appended.push(n);
+      },
+    },
+    documentElement: {
+      appendChild(n) {
+        appended.push(n);
+      },
+    },
     createElement() {
       let value = '';
+      const attrs = {};
       return {
+        attributes: attrs,
+        setAttribute(k, v) {
+          attrs[k] = v;
+        },
         get innerHTML() {
           return value;
         },
@@ -61,6 +84,7 @@ function makeDoc({ enforced = true } = {}) {
 async function install(env, options) {
   globalThis.trustedTypes = env.tt;
   globalThis.document = env.doc;
+  globalThis.location = env.location || { href: 'https://example.test/' };
   if ('DOMPurify' in env) globalThis.DOMPurify = env.DOMPurify;
   else delete globalThis.DOMPurify;
   const mod = await freshModule();
@@ -71,9 +95,12 @@ async function install(env, options) {
 function cleanup() {
   delete globalThis.trustedTypes;
   delete globalThis.document;
+  delete globalThis.location;
   delete globalThis.DOMPurify;
   delete Object.prototype.ALLOW_SCRIPT_URL;
   delete Object.prototype.ALLOW_SCRIPT;
+  delete Object.prototype.EXCLUDE;
+  delete Object.prototype.URL_CONFIG;
 }
 
 // --- sanitizer resolution ------------------------------------------------------------------------
@@ -233,5 +260,156 @@ QUnit.module('status', (hooks) => {
     const { mod, status } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: dp });
     assert.strictEqual(mod.init({}), status, 'second init returns the same status');
     assert.strictEqual(mod.status(), status, 'status() returns it too');
+  });
+});
+
+// --- URL targeting (EXCLUDE / URL_CONFIG) & meta injection ---------------------------------------
+
+QUnit.module('url targeting & meta injection', (hooks) => {
+  hooks.afterEach(cleanup);
+
+  QUnit.test('EXCLUDE (substring) keeps DOMFortify fully inactive', async (assert) => {
+    const dp = { sanitize: (s) => '[clean]' + s };
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/admin/users' } };
+    const { status } = await install(env, { EXCLUDE: '/admin/' });
+    assert.true(status.excluded, 'status.excluded is true');
+    assert.false(status.defaultPolicyOwned, 'no default policy claimed');
+    assert.false(status.protected, 'not protected');
+    assert.strictEqual(env.tt._rules, null, 'createPolicy was never called');
+  });
+
+  QUnit.test('EXCLUDE (regex) matches against location.href', async (assert) => {
+    const dp = { sanitize: (s) => '[clean]' + s };
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/p?debug=1' } };
+    const { status } = await install(env, { EXCLUDE: [/[?&]debug=1\b/] });
+    assert.true(status.excluded, 'excluded by regex');
+    assert.strictEqual(env.tt._rules, null, 'no policy');
+  });
+
+  QUnit.test('EXCLUDE that does not match installs normally', async (assert) => {
+    const dp = { sanitize: (s) => '[clean]' + s };
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/home' } };
+    const { status, rules } = await install(env, { EXCLUDE: '/admin/' });
+    assert.false(status.excluded, 'not excluded');
+    assert.true(status.protected, 'protected as usual');
+    assert.strictEqual(rules.createHTML('<x>'), '[clean]<x>', 'policy active');
+  });
+
+  QUnit.test('polluted EXCLUDE cannot silently disable the library', async (assert) => {
+    Object.prototype.EXCLUDE = '/'; // would match every URL if read off the prototype
+    const dp = { sanitize: (s) => '[clean]' + s };
+    const { status } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: dp });
+    assert.false(status.excluded, 'prototype EXCLUDE ignored (own-key only)');
+    assert.true(status.protected, 'still protected');
+  });
+
+  QUnit.test('URL_CONFIG overrides SANITIZER_CONFIG for a matching URL', async (assert) => {
+    const dp = { sanitize: (_s, cfg) => JSON.stringify(cfg) }; // echo the effective config
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/comments/42' } };
+    const { rules } = await install(env, {
+      SANITIZER_CONFIG: { ALLOWED_TAGS: ['div'] },
+      URL_CONFIG: [{ match: '/comments/', SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i'] } }],
+    });
+    assert.deepEqual(
+      JSON.parse(rules.createHTML('<x>')),
+      { ALLOWED_TAGS: ['b', 'i'] },
+      'override config reached sanitizer',
+    );
+  });
+
+  QUnit.test('URL_CONFIG falls back to the base config when nothing matches', async (assert) => {
+    const dp = { sanitize: (_s, cfg) => JSON.stringify(cfg) };
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/home' } };
+    const { rules } = await install(env, {
+      SANITIZER_CONFIG: { ALLOWED_TAGS: ['div'] },
+      URL_CONFIG: [{ match: '/comments/', SANITIZER_CONFIG: { ALLOWED_TAGS: ['b'] } }],
+    });
+    assert.deepEqual(JSON.parse(rules.createHTML('<x>')), { ALLOWED_TAGS: ['div'] }, 'base config used');
+  });
+
+  QUnit.test('URL_CONFIG can override the sanitizer and a script hook per URL', async (assert) => {
+    const env = { tt: makeTT(), doc: makeDoc(), location: { href: 'https://app.test/trusted/page' } };
+    const { rules } = await install(env, {
+      SANITIZER: (s) => '[base]' + s,
+      URL_CONFIG: [
+        {
+          match: /\/trusted\//,
+          SANITIZER: (s) => '[override]' + s,
+          ALLOW_SCRIPT_URL: (u) => (u.startsWith('https://cdn.test/') ? u : null),
+        },
+      ],
+    });
+    assert.strictEqual(rules.createHTML('<x>'), '[override]<x>', 'override sanitizer used');
+    assert.strictEqual(
+      rules.createScriptURL('https://cdn.test/a.js'),
+      'https://cdn.test/a.js',
+      'override hook allows vetted URL',
+    );
+    assert.strictEqual(rules.createScriptURL('https://evil.test/a.js'), null, 'override hook refuses the rest');
+  });
+
+  QUnit.test('first matching URL_CONFIG rule wins', async (assert) => {
+    const dp = { sanitize: (_s, cfg) => JSON.stringify(cfg) };
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/a/b' } };
+    const { rules } = await install(env, {
+      URL_CONFIG: [
+        { match: '/a/', SANITIZER_CONFIG: { tag: 'first' } },
+        { match: '/b', SANITIZER_CONFIG: { tag: 'second' } },
+      ],
+    });
+    assert.deepEqual(JSON.parse(rules.createHTML('<x>')), { tag: 'first' }, 'first match applied');
+  });
+
+  QUnit.test('INJECT_META writes the meta during parse (readyState loading)', async (assert) => {
+    const dp = { sanitize: (s) => s };
+    const doc = makeDoc({ readyState: 'loading' });
+    const { status } = await install({ tt: makeTT(), doc, DOMPurify: dp }, { INJECT_META: true });
+    assert.true(status.metaInjected, 'metaInjected true when written during parse');
+    assert.strictEqual(doc._writes.length, 1, 'document.write called once');
+    assert.true(
+      doc._writes[0].includes("require-trusted-types-for 'script'") &&
+        doc._writes[0].includes('trusted-types default dompurify'),
+      'wrote the enabling directive (default dompurify)',
+    );
+  });
+
+  QUnit.test('INJECT_META with a bare-function sanitizer drops the dompurify policy name', async (assert) => {
+    const doc = makeDoc({ readyState: 'loading' });
+    await install({ tt: makeTT(), doc }, { INJECT_META: true, SANITIZER: (s) => s });
+    assert.true(doc._writes[0].includes('trusted-types default;'), 'directive lists only default');
+    assert.false(doc._writes[0].includes('dompurify'), 'no dompurify policy name');
+  });
+
+  QUnit.test('INJECT_META after parse falls back to append and reports not written', async (assert) => {
+    const dp = { sanitize: (s) => s };
+    const doc = makeDoc({ readyState: 'complete' });
+    const { status } = await install({ tt: makeTT(), doc, DOMPurify: dp }, { INJECT_META: true });
+    assert.false(status.metaInjected, 'metaInjected false: append after parse does not enforce');
+    assert.strictEqual(doc._writes.length, 0, 'document.write not called');
+    assert.strictEqual(doc._appended.length, 1, 'a meta node was appended as a (non-enforcing) fallback');
+    assert.strictEqual(doc._appended[0].attributes['http-equiv'], 'Content-Security-Policy', 'appended a CSP meta');
+  });
+
+  QUnit.test('META_DIRECTIVE overrides the injected directive', async (assert) => {
+    const dp = { sanitize: (s) => s };
+    const doc = makeDoc({ readyState: 'loading' });
+    await install(
+      { tt: makeTT(), doc, DOMPurify: dp },
+      { INJECT_META: true, META_DIRECTIVE: 'trusted-types default custom;' },
+    );
+    assert.strictEqual(
+      doc._writes[0],
+      '<meta http-equiv="Content-Security-Policy" content="trusted-types default custom;">',
+      'custom directive used verbatim',
+    );
+  });
+
+  QUnit.test('no INJECT_META means no write and no append', async (assert) => {
+    const dp = { sanitize: (s) => s };
+    const doc = makeDoc({ readyState: 'loading' });
+    const { status } = await install({ tt: makeTT(), doc, DOMPurify: dp });
+    assert.false(status.metaInjected, 'metaInjected false');
+    assert.strictEqual(doc._writes.length, 0, 'no write');
+    assert.strictEqual(doc._appended.length, 0, 'no append');
   });
 });

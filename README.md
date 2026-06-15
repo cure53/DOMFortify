@@ -84,6 +84,12 @@ window.DOMFortifyConfig = {
   SANITIZER: window.DOMPurify, // default. Or a function (s) => string to use the native Sanitizer API
   SANITIZER_CONFIG: {}, // forwarded to the sanitizer
   ON_VIOLATION(code, detail) {}, // called on every notable event - good for report-only rollouts
+  EXCLUDE: ['/admin/', /\/internal\b/], // URL patterns where DOMFortify stays completely inactive
+  URL_CONFIG: [
+    // per-URL overrides; first match wins. Notably, a different sanitizer config per route:
+    { match: '/comments/', SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i', 'a'] } },
+  ],
+  INJECT_META: false, // opt-in, best-effort meta injection - read the caveat below first
 };
 ```
 
@@ -92,11 +98,28 @@ By default script sinks are refused. If you genuinely need to allow a specific o
 anything else to refuse. Config is read once, own-properties only, so a polluted prototype can't
 sneak a value in or loosen a refusal.
 
+`EXCLUDE` and `URL_CONFIG` both match against `location.href` - a string is a substring match, a
+RegExp is `test()`ed, and either may be given as an array. On an excluded URL DOMFortify does
+nothing at all: it claims no policy and injects no meta (it deliberately does **not** install a
+passthrough, which would be a silent XSS hole). `URL_CONFIG` lets you vary the sanitizer, its config,
+or the script hooks per route - the first matching rule's keys override the base config.
+
+`INJECT_META` is an opt-in attempt to add the enabling CSP `<meta>` for developers who can set
+neither a header nor a `<meta>` by hand. Treat it as best-effort: a `<meta>` CSP only takes effect
+when the parser inserts it, so this can work **only** when DOMFortify runs during the initial parse
+(inline or a blocking script, early in `<head>`) and only for content parsed afterwards. When it
+can't write during parse it appends a harmless, non-enforcing node and reports `metaInjected: false`.
+A response header or a hand-placed parse-time `<meta>` is strongly preferred; use `META_DIRECTIVE` to
+override the directive if your policy names differ.
+
 ## What it won't do
 
 It's a retrofit, not magic. Know the edges:
 
 - **It needs the CSP.** No enforcement, no protection - and it'll tell you so via `status()`.
+- **`INJECT_META` is best-effort.** A script-inserted `<meta>` CSP is ignored unless the parser
+  inserts it during the initial parse. Don't rely on it where a header or hand-placed `<meta>` is an
+  option; check `status()` to see whether enforcement actually took.
 - **Load it first.** Whoever registers the `default` policy first wins. If attacker code beats you to
   it, you're worse off than before. Don't add `'allow-duplicates'`.
 - **One realm at a time.** Each iframe is its own world and needs its own DOMFortify.
