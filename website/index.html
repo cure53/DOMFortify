@@ -76,6 +76,8 @@
     .pill { border: 1px solid var(--border); border-radius: 999px; padding: 4px 9px; background: var(--panel-2); color: var(--muted); font-size: 12px; white-space: nowrap; }
     h1 { margin: 0; letter-spacing: -.02em; font-size: clamp(22px, 3vw, 32px); line-height: 1.08; }
     .intro { max-width: 760px; margin: 0; color: var(--muted); font-size: 17px; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+    .badges img { display: block; max-width: 100%; height: 20px; }
 
     .banner { margin-top: 18px; padding: 16px 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; box-shadow: var(--shadow); }
     .banner.ok { border-left: 4px solid var(--safe); }
@@ -146,6 +148,7 @@
       header { padding: 18px; gap: 12px; }
       .explainer { padding: 18px; }
       .intro { font-size: 15px; }
+      .badges img { height: 18px; }
       .toolbar { grid-template-columns: 1fr; gap: 10px; padding: 12px; }
       .card-header { align-items: flex-start; flex-direction: column; gap: 4px; }
       .meta { white-space: normal; }
@@ -168,6 +171,12 @@
         Types on, the library claims the realm's <code>default</code> policy, and the deliberately-vulnerable code below
         gets sanitized by the browser - unchanged. Nothing registers a policy by hand; the library does it.
       </p>
+      <div class="badges" aria-label="Project badges">
+        <a href="https://github.com/cure53/DOMFortify/actions/workflows/ci.yml"><img src="https://github.com/cure53/DOMFortify/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+        <a href="https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml"><img src="https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg" alt="CodeQL"></a>
+        <a href="https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify"><img src="https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge" alt="OpenSSF Scorecard"></a>
+        <a href="https://github.com/cure53/DOMFortify/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg" alt="License"></a>
+      </div>
     </header>
 
     <!-- The library's own self-report. This is what an integrator reads to know if they are actually protected. -->

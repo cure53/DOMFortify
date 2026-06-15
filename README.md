@@ -77,40 +77,102 @@ init();
 
 ## Configuration
 
-Set `window.DOMFortifyConfig` before the script, or pass the same object to `init()`:
+Set `window.DOMFortifyConfig` before the script tag, or pass the same object to `DOMFortify.init()`.
+Every option is optional; the defaults give you DOMPurify on every HTML sink and a hard refusal on
+every script sink. Config is read once, own-properties only, so a polluted prototype can't sneak a
+value in or loosen a refusal.
+
+Each topic below has a runnable page in [`/demos`](demos/) - the links point straight at them.
+
+### Picking a sanitizer
 
 ```js
+// Default: window.DOMPurify sanitizes every HTML sink.
+window.DOMFortifyConfig = { SANITIZER: window.DOMPurify };
+
+// Any object with .sanitize(input, config) works...
+window.DOMFortifyConfig = { SANITIZER: myCustomSanitizer };
+
+// ...as does a bare (string) => string function, e.g. the native Sanitizer API.
 window.DOMFortifyConfig = {
-  SANITIZER: window.DOMPurify, // default. Or a function (s) => string to use the native Sanitizer API
-  SANITIZER_CONFIG: {}, // forwarded to the sanitizer
-  ON_VIOLATION(code, detail) {}, // called on every notable event - good for report-only rollouts
-  EXCLUDE: ['/admin/', /\/internal\b/], // URL patterns where DOMFortify stays completely inactive
-  URL_CONFIG: [
-    // per-URL overrides; first match wins. Notably, a different sanitizer config per route:
-    { match: '/comments/', SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i', 'a'] } },
-  ],
-  INJECT_META: false, // opt-in, best-effort meta injection - read the caveat below first
+  SANITIZER: (s) => {
+    const d = document.createElement('div');
+    d.setHTML(s);
+    return d.innerHTML;
+  },
+};
+
+// SANITIZER_CONFIG is forwarded verbatim as the sanitizer's second argument (a DOMPurify config here).
+window.DOMFortifyConfig = {
+  SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i', 'a'], ALLOWED_ATTR: ['href'] },
 };
 ```
 
-By default script sinks are refused. If you genuinely need to allow a specific one, hand over an
-`ALLOW_SCRIPT(code)` or `ALLOW_SCRIPT_URL(url)` function that returns a string to permit it, or
-anything else to refuse. Config is read once, own-properties only, so a polluted prototype can't
-sneak a value in or loosen a refusal.
+Demos: [sanitizer config](demos/config-demo.html), [native Sanitizer API](demos/native-sanitizer-demo.html).
 
-`EXCLUDE` and `URL_CONFIG` both match against `location.href` - a string is a substring match, a
-RegExp is `test()`ed, and either may be given as an array. On an excluded URL DOMFortify does
-nothing at all: it claims no policy and injects no meta (it deliberately does **not** install a
-passthrough, which would be a silent XSS hole). `URL_CONFIG` lets you vary the sanitizer, its config,
-or the script hooks per route - the first matching rule's keys override the base config.
+### Allowing script sinks
 
-`INJECT_META` is an opt-in attempt to add the enabling CSP `<meta>` for developers who can set
-neither a header nor a `<meta>` by hand. Treat it as best-effort: a `<meta>` CSP only takes effect
-when the parser inserts it, so this can work **only** when DOMFortify runs during the initial parse
-(inline or a blocking script, early in `<head>`) and only for content parsed afterwards. When it
-can't write during parse it appends a harmless, non-enforcing node and reports `metaInjected: false`.
-A response header or a hand-placed parse-time `<meta>` is strongly preferred; use `META_DIRECTIVE` to
-override the directive if your policy names differ.
+```js
+// Script sinks (eval, javascript: URLs, script.src, Worker URLs) are REFUSED by default.
+// A hook may allow specific, vetted values: return a string to mint it, anything else to refuse.
+window.DOMFortifyConfig = {
+  ALLOW_SCRIPT: (code) => null, // default: refuse every eval-like sink
+  ALLOW_SCRIPT_URL: (url) => (url.startsWith('https://cdn.example/') ? url : null), // allow one origin
+};
+```
+
+Demo: [allow one script URL](demos/allow-script-url-demo.html).
+
+### Scoping by URL
+
+```js
+// EXCLUDE: URL pattern(s) where DOMFortify stays completely inactive - no policy, no meta injection.
+// It does NOT install a passthrough (that would be a silent XSS hole). Matched against location.href:
+// a string is a substring match, a RegExp is test()ed, and either may be given as an array.
+window.DOMFortifyConfig = { EXCLUDE: ['/admin/', /\/internal\b/] };
+
+// URL_CONFIG: per-URL overrides; the FIRST matching rule's own keys override the base config. Handy
+// for a stricter (or looser) sanitizer config, sanitizer, or script hook on specific routes.
+window.DOMFortifyConfig = {
+  SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i'] }, // the baseline
+  URL_CONFIG: [{ match: '/comments/', SANITIZER_CONFIG: { ALLOWED_TAGS: ['b'] } }],
+};
+```
+
+Demo: [scoping by URL](demos/url-config-demo.html).
+
+### Turning enforcement on (advanced)
+
+DOMFortify does not enable Trusted Types - a CSP does, and a response header is the only fully
+reliable way. For pages that can set neither a header nor a hand-placed `<meta>`, `INJECT_META` is an
+opt-in, best-effort fallback (see [What it won't do](#what-it-wont-do) for the caveat).
+
+```js
+// Opt-in, default false. Best-effort: a <meta> CSP is honored only when the parser inserts it, so
+// this can work only when DOMFortify runs during the initial parse and only for content parsed
+// afterwards. Otherwise it appends a non-enforcing node and reports status().metaInjected === false.
+window.DOMFortifyConfig = { INJECT_META: true };
+
+// META_DIRECTIVE overrides the whole trusted-types directive, e.g. if your policy names differ.
+window.DOMFortifyConfig = {
+  INJECT_META: true,
+  META_DIRECTIVE: "require-trusted-types-for 'script'; trusted-types default dompurify my-policy;",
+};
+```
+
+Demo: [meta injection](demos/meta-inject-demo.html).
+
+### Monitoring (report-only)
+
+```js
+// ON_VIOLATION fires on every notable decision: refusals, allowed sinks, a missing sanitizer, an
+// excluded URL, and so on. Wire it to your telemetry as a safe on-ramp before you rely on enforcement.
+window.DOMFortifyConfig = {
+  ON_VIOLATION: (code, detail) => console.warn('[DOMFortify]', code, detail),
+};
+```
+
+Demo: [report-only monitoring](demos/report-only-demo.html).
 
 ## What it won't do
 
