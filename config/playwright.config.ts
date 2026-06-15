@@ -1,12 +1,20 @@
 import { defineConfig } from '@playwright/test';
 
-// Runs the QUnit suite in a real browser. The suite (test/index.html) is self-contained and
-// served as a static file, so no dev server is needed.
+const PORT = 5173;
+const baseURL = `http://127.0.0.1:${PORT}`;
+
+// Runs the QUnit suite in a real browser. A tiny static server hosts the suite over http:// so its
+// ES module imports resolve (file:// would be blocked by CORS).
 export default defineConfig({
   testDir: '../test',
   testMatch: /browser-runner\.ts/,
-  fullyParallel: true,
   reporter: 'list',
-  use: { headless: true },
+  use: { baseURL, headless: true },
+  webServer: {
+    command: 'node test/serve.mjs',
+    url: `${baseURL}/test/index.html`,
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+  },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
 });
