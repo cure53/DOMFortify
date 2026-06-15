@@ -51,7 +51,11 @@ built-in `Element.setHTML()` instead. Drop `dompurify` from the directive (`trus
 
 ```js
 window.DOMFortifyConfig = {
-  SANITIZER: (s) => { const d = document.createElement('div'); d.setHTML(s); return d.innerHTML; },
+  SANITIZER: (s) => {
+    const d = document.createElement('div');
+    d.setHTML(s);
+    return d.innerHTML;
+  },
 };
 ```
 

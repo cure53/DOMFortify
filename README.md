@@ -10,7 +10,7 @@ so that old, vulnerable code like `el.innerHTML = location.hash` gets sanitized 
 the DOM. You don't touch the code. You don't even need to know where the bug is.
 
 It's for the sites you can't easily fix: complex apps or legacy apps nobody wants to touch, the third-party widget you
-can't patch, the 2000+ `innerHTML` sinks written before anyone had heard of XSS. 
+can't patch, the 2000+ `innerHTML` sinks written before anyone had heard of XSS.
 
 **Just ship the policy, and the browser automtically protects every HTML sink with DOMPurify or other sanitizers.**
 
@@ -22,7 +22,7 @@ deliberately broken page and watch the browser neutralize them before they reach
 ## How it works
 
 Trusted Types lets a page register one `default` policy that the browser calls for every dangerous
-sink. DOMFortify is that policy. 
+sink. DOMFortify is that policy.
 
 HTML goes through [DOMPurify](https://github.com/cure53/DOMPurify)
 (or any sanitizer you hand it); script sinks like `eval` and `script.src` are refused outright,
