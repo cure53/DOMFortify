@@ -12,6 +12,9 @@ export default defineConfig({
   use: { baseURL, headless: true },
   webServer: {
     command: 'node test/serve.mjs',
+    // Playwright defaults webServer cwd to the config dir; pin it to the repo root (where npm runs)
+    // so the relative command and the served paths resolve correctly.
+    cwd: process.cwd(),
     url: `${baseURL}/test/index.html`,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
