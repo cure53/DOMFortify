@@ -1,7 +1,7 @@
 # DOMFortify
 
 [![License: MPL-2.0 OR Apache-2.0](https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg)](LICENSE)
-[![CI](https://github.com/cure53/DOMFortify/actions/workflows/ci.yml/badge.svg)](https://github.com/cure53/DOMFortify/actions/workflows/ci.yml)
+[![Build & Test](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml)
 [![CodeQL](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge)](https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify)
 

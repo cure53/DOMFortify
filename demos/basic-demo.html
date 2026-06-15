@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Basic usage</title>
+    <!-- Turn Trusted Types enforcement ON. Best as a response header; a <meta> works too. -->
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+    <link rel="stylesheet" href="lib/demo.css" />
+    <!-- The sanitizer, then DOMFortify FIRST so it wins the default policy slot. -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Basic usage</nav>
+      <h1>Basic usage</h1>
+      <p class="lead">No config, no hooks - just the CSP above and <code>fortify.js</code>. The
+        vulnerable line is never changed; the browser sanitizes it on the way into the DOM.</p>
+
+      <div class="card">
+        <h2>The vulnerable code (untouched)</h2>
+        <pre>out.innerHTML = dirty;   // no sanitizer call anywhere in the app</pre>
+      </div>
+
+      <div class="card">
+        <h2>Try it</h2>
+        <textarea id="dirty">&lt;img src=x onerror="alert('xss')"&gt; &lt;b&gt;bold&lt;/b&gt; &lt;a href="https://example.com"&gt;link&lt;/a&gt;</textarea>
+        <button id="run">Run the sink</button>
+        <div class="muted">What landed in the DOM:</div>
+        <div class="out" id="out"></div>
+        <p class="muted" id="note"></p>
+      </div>
+    </main>
+    <script>
+      let xss = 0;
+      window.alert = () => { xss++; };
+      const out = document.getElementById('out');
+      const run = () => {
+        xss = 0;
+        out.innerHTML = document.getElementById('dirty').value; // the sink, routed through DOMFortify
+        document.getElementById('note').textContent =
+          'protected = ' + DOMFortify.status()?.protected + '  |  alert() fired ' + xss +
+          ' time(s) - the onerror handler and javascript: URLs were stripped by the sanitizer.';
+      };
+      document.getElementById('run').addEventListener('click', run);
+      run();
+    </script>
+  </body>
+</html>

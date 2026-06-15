@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Meta injection (best-effort)</title>
+    <!-- NOTE: there is deliberately NO hand-placed CSP <meta> here. INJECT_META is asked to add it. -->
+    <link rel="stylesheet" href="lib/demo.css" />
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script>
+      window.DOMFortifyConfig = { INJECT_META: true };
+    </script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Meta injection</nav>
+      <h1>Meta injection (best-effort)</h1>
+      <p class="lead">This page sets <code>INJECT_META: true</code> and ships <strong>no</strong>
+        hand-placed CSP. A <code>&lt;meta&gt;</code> CSP only takes effect when the parser inserts it, so
+        DOMFortify can only try via <code>document.write</code> during the initial parse - and even then
+        only for content parsed afterwards. The honest outcome in <em>your</em> browser is below.</p>
+
+      <div class="card">
+        <h2>DOMFortify.status()</h2>
+        <p class="status" id="verdict"></p>
+        <pre id="status"></pre>
+      </div>
+
+      <p class="muted">Takeaway: prefer a response header, or a hand-placed parse-time
+        <code>&lt;meta&gt;</code>. Use <code>INJECT_META</code> only when you can set neither, and always
+        confirm with <code>status()</code> that enforcement actually took.</p>
+    </main>
+    <script>
+      const s = DOMFortify.status() || {};
+      const v = document.getElementById('verdict');
+      v.textContent = s.protected ? 'PROTECTED' : 'NOT PROTECTED (see reason)';
+      v.className = 'status ' + (s.protected ? 'ok' : 'bad');
+      document.getElementById('status').textContent = JSON.stringify(s, null, 2);
+    </script>
+  </body>
+</html>

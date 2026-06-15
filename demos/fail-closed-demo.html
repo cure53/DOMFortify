@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Fails closed</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+    <link rel="stylesheet" href="lib/demo.css" />
+    <!-- NOTE: DOMPurify is deliberately NOT loaded here, to show the fail-closed behavior. -->
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Fails closed</nav>
+      <h1>Fails closed</h1>
+      <p class="lead">Enforcement is on, but the sanitizer is missing (DOMPurify isn't loaded on this
+        page). DOMFortify refuses to hand back unsanitized markup, so the sink <strong>throws</strong>
+        rather than leak. Breaking loudly beats failing open.</p>
+
+      <div class="card">
+        <h2>Status</h2>
+        <p class="status bad" id="verdict"></p>
+        <pre id="reason"></pre>
+      </div>
+
+      <div class="card">
+        <h2>Try the sink anyway</h2>
+        <textarea id="dirty">&lt;b&gt;anything&lt;/b&gt;</textarea>
+        <button id="run">Run the sink</button>
+        <p id="note"></p>
+      </div>
+    </main>
+    <script>
+      const s = DOMFortify.status() || {};
+      document.getElementById('verdict').textContent = s.protected ? 'PROTECTED' : 'NOT PROTECTED';
+      document.getElementById('reason').textContent = s.reason || '';
+      const out = document.createElement('div');
+      document.getElementById('run').addEventListener('click', () => {
+        const note = document.getElementById('note');
+        try { out.innerHTML = document.getElementById('dirty').value; note.innerHTML = '<span class="status ok">wrote: ' + out.innerHTML + '</span>'; }
+        catch (e) { note.innerHTML = '<span class="status bad">blocked (fail-closed): ' + e.message + '</span>'; }
+      });
+    </script>
+  </body>
+</html>

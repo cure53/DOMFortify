@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Native Sanitizer API</title>
+    <!-- No 'dompurify' in the directive: the sanitizer here is the browser's own setHTML(). -->
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default;" />
+    <link rel="stylesheet" href="lib/demo.css" />
+    <!-- SANITIZER accepts a bare function (string) =&gt; string, so the native API is a one-liner. -->
+    <script>
+      window.DOMFortifyConfig = {
+        SANITIZER: function (s) {
+          var d = document.createElement('div');
+          d.setHTML(s);
+          return d.innerHTML;
+        },
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Native Sanitizer API</nav>
+      <h1>Native Sanitizer API</h1>
+      <p class="lead">No DOMPurify at all. DOMFortify drives the browser's built-in
+        <code>Element.setHTML()</code> as the sanitizer. Needs a browser that ships the Sanitizer API.</p>
+
+      <div class="card">
+        <h2>The config</h2>
+        <pre>window.DOMFortifyConfig = {
+  SANITIZER: (s) =&gt; { const d = document.createElement('div'); d.setHTML(s); return d.innerHTML; },
+};
+// and drop "dompurify" from the directive: trusted-types default;</pre>
+      </div>
+
+      <div class="card">
+        <h2>Try it</h2>
+        <textarea id="dirty">&lt;img src=x onerror="alert('xss')"&gt; &lt;b&gt;kept&lt;/b&gt;</textarea>
+        <button id="run">Run the sink</button>
+        <div class="out" id="out"></div>
+        <p class="muted" id="note"></p>
+      </div>
+    </main>
+    <script>
+      let xss = 0; window.alert = () => { xss++; };
+      const out = document.getElementById('out');
+      const note = document.getElementById('note');
+      if (typeof Element.prototype.setHTML !== 'function') {
+        note.innerHTML = '<span class="status bad">This browser has no Element.setHTML() - the sanitizer is unavailable, so DOMFortify fails closed and the sink will throw.</span>';
+      }
+      const run = () => {
+        xss = 0;
+        try { out.innerHTML = document.getElementById('dirty').value; note.textContent = 'protected = ' + DOMFortify.status()?.protected + '  |  alert() fired ' + xss + ' time(s).'; }
+        catch (e) { note.innerHTML = '<span class="status bad">sink threw (fail-closed): ' + e.message + '</span>'; }
+      };
+      document.getElementById('run').addEventListener('click', run);
+      if (typeof Element.prototype.setHTML === 'function') run();
+    </script>
+  </body>
+</html>

@@ -65,7 +65,7 @@
     "test:browser": "playwright test --config config/playwright.config.ts",
     "test": "npm run typecheck && npm run build && npm run test:node && npm run test:fuzz",
     "prepublishOnly": "npm run build",
-    "test:fuzz": "node test/fuzz/policy.fuzz.mjs"
+    "test:fuzz": "node test/fuzz/policy.fuzz.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

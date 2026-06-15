@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Status / self-report</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+    <link rel="stylesheet" href="lib/demo.css" />
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Status</nav>
+      <h1>Status / self-report</h1>
+      <p class="lead"><code>DOMFortify.status()</code> tells you, honestly, whether the page is actually
+        protected and why. <code>protected</code> is true only when enforcement is on, DOMFortify owns
+        the default policy, and the sanitizer passed its smoke test.</p>
+
+      <div class="card">
+        <h2>DOMFortify.status()</h2>
+        <p class="status" id="verdict"></p>
+        <pre id="status"></pre>
+      </div>
+      <p class="muted">Tip: remove the DOMPurify <code>&lt;script&gt;</code> tag and reload to watch this flip to
+        a fail-closed state, with the reason spelled out.</p>
+    </main>
+    <script>
+      const s = DOMFortify.status() || {};
+      const v = document.getElementById('verdict');
+      v.textContent = s.protected ? 'PROTECTED' : 'NOT PROTECTED';
+      v.className = 'status ' + (s.protected ? 'ok' : 'bad');
+      document.getElementById('status').textContent = JSON.stringify(s, null, 2);
+    </script>
+  </body>
+</html>

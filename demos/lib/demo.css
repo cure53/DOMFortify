@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f6f6; --panel: #fff; --panel-2: #eee; --text: #1a1a1a; --muted: #626262;
+  --border: #d8d8d8; --accent: #2f2f2f; --ink: #fff; --danger: #b3261e; --safe: #137333;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f0f0f; --panel: #171717; --panel-2: #111; --text: #eee; --muted: #a8a8a8;
+    --border: #303030; --accent: #e2e2e2; --ink: #101010; --danger: #ff7b72; --safe: #56d364;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+h1 { font-size: 22px; letter-spacing: -.02em; margin: 0 0 4px; }
+.lead { color: var(--muted); margin: 0 0 18px; }
+nav.crumb { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+a { color: var(--text); }
+nav.crumb a { color: var(--muted); }
+.card { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 18px; margin: 16px 0; }
+.card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+code, pre, textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+code { background: var(--panel-2); padding: 1px 5px; border-radius: 6px; font-size: 13px; }
+pre { background: var(--panel-2); border-radius: 10px; padding: 12px; overflow: auto; font-size: 12.5px; margin: 0; white-space: pre-wrap; word-break: break-word; }
+textarea { width: 100%; min-height: 84px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); color: var(--text); padding: 10px; resize: vertical; font-size: 13px; }
+button { font: inherit; font-weight: 700; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent); color: var(--ink); padding: 8px 16px; cursor: pointer; margin-top: 10px; }
+button:active { transform: translateY(1px); }
+.out { min-height: 38px; border: 1px dashed var(--border); border-radius: 10px; background: #fff; color: #111; padding: 12px; margin-top: 10px; }
+.muted { color: var(--muted); font-size: 13px; }
+.status { font-weight: 700; }
+.status.ok { color: var(--safe); }
+.status.bad { color: var(--danger); }

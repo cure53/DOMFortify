@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Report-only monitoring</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+    <link rel="stylesheet" href="lib/demo.css" />
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <!-- ON_VIOLATION fires on every notable decision - a report-only on-ramp before you enforce. -->
+    <script>
+      window.__log = [];
+      window.DOMFortifyConfig = {
+        ON_VIOLATION: function (code, detail) {
+          window.__log.push(code + (detail && detail.sink ? ' [' + detail.sink + ']' : '') + (detail && detail.sample ? '  ' + detail.sample : ''));
+        },
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Report-only monitoring</nav>
+      <h1>Report-only monitoring</h1>
+      <p class="lead">Wire <code>ON_VIOLATION</code> to a logger (or your telemetry) to watch what the
+        policy is doing - refusals, allowed sinks, a missing sanitizer - without changing behavior.</p>
+
+      <div class="card">
+        <h2>The config</h2>
+        <pre>window.DOMFortifyConfig = {
+  ON_VIOLATION: (code, detail) =&gt; report(code, detail),
+};</pre>
+      </div>
+
+      <div class="card">
+        <h2>Try it</h2>
+        <textarea id="dirty">&lt;img src=x onerror="alert(1)"&gt;</textarea>
+        <button id="html">innerHTML</button>
+        <button id="script">eval(value)</button>
+        <button id="url">script.src = value</button>
+        <div class="muted">Event log:</div>
+        <pre id="log">no events yet</pre>
+      </div>
+    </main>
+    <script>
+      window.alert = () => {};
+      const out = document.createElement('div');
+      const render = () => { document.getElementById('log').textContent = window.__log.length ? window.__log.join('\n') : 'no events yet'; };
+      const val = () => document.getElementById('dirty').value;
+      document.getElementById('html').addEventListener('click', () => { try { out.innerHTML = val(); } catch (e) {} render(); });
+      document.getElementById('script').addEventListener('click', () => { try { (0, eval)(val()); } catch (e) {} render(); });
+      document.getElementById('url').addEventListener('click', () => { try { const s = document.createElement('script'); s.src = val(); } catch (e) {} render(); });
+      render();
+    </script>
+  </body>
+</html>

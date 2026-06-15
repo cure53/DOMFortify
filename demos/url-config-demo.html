@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Scoping by URL</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+    <link rel="stylesheet" href="lib/demo.css" />
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <!-- EXCLUDE and URL_CONFIG match against location.href, so this demo keys off the query string. -->
+    <script>
+      window.DOMFortifyConfig = {
+        EXCLUDE: [/[?&]off\b/], // on ?off, DOMFortify stands down entirely
+        SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i', 'p', 'a', 'img', '#text'], ALLOWED_ATTR: ['href', 'src'] },
+        URL_CONFIG: [
+          // On ?strict, swap in a much tighter sanitizer config for this page only.
+          { match: /[?&]strict\b/, SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', '#text'] } },
+        ],
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Scoping by URL</nav>
+      <h1>Scoping by URL</h1>
+      <p class="lead"><code>EXCLUDE</code> and <code>URL_CONFIG</code> both match
+        <code>location.href</code>. This page reads the query string: the baseline allows a handful of
+        tags, <code>?strict</code> swaps in a tighter config for this URL only, and <code>?off</code>
+        excludes the page entirely.</p>
+
+      <div class="card">
+        <h2>Pick a URL</h2>
+        <p>
+          <a href="?">baseline</a> &nbsp;|&nbsp;
+          <a href="?strict">?strict (URL_CONFIG override)</a> &nbsp;|&nbsp;
+          <a href="?off">?off (EXCLUDE)</a>
+        </p>
+        <p class="muted">Current: <code id="href"></code></p>
+        <p class="muted">excluded = <span id="excluded"></span></p>
+      </div>
+
+      <div class="card">
+        <h2>Same payload, sanitized by whatever config applies here</h2>
+        <textarea id="dirty">&lt;p&gt;&lt;b&gt;bold&lt;/b&gt; &lt;i&gt;italic&lt;/i&gt; &lt;a href="https://example.com"&gt;link&lt;/a&gt;&lt;/p&gt;&lt;img src=x onerror="alert(1)"&gt;</textarea>
+        <button id="run">Run the sink</button>
+        <div class="muted">Resulting HTML:</div>
+        <pre id="html"></pre>
+        <p id="note"></p>
+      </div>
+    </main>
+    <script>
+      window.alert = () => {};
+      const s = DOMFortify.status() || {};
+      document.getElementById('href').textContent = location.href;
+      document.getElementById('excluded').textContent = String(!!s.excluded);
+      const out = document.createElement('div');
+      const run = () => {
+        const note = document.getElementById('note');
+        try {
+          out.innerHTML = document.getElementById('dirty').value;
+          document.getElementById('html').textContent = out.innerHTML;
+          note.innerHTML = '<span class="status ok">Sanitized with the config that matched this URL.</span>';
+        } catch (e) {
+          document.getElementById('html').textContent = '';
+          note.innerHTML =
+            '<span class="status bad">Excluded: no default policy, and this page is enforced, so the sink throws: ' +
+            e.message +
+            '</span>';
+        }
+      };
+      document.getElementById('run').addEventListener('click', run);
+      run();
+    </script>
+  </body>
+</html>

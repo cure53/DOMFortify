@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Allow one script URL</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+    <link rel="stylesheet" href="lib/demo.css" />
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <!-- Script sinks are refused by default. A hook may allow specific, vetted values. -->
+    <script>
+      window.DOMFortifyConfig = {
+        ALLOW_SCRIPT_URL: function (url) {
+          return url.startsWith('https://cdn.jsdelivr.net/') ? url : null; // allow one origin, refuse the rest
+        },
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Allow one script URL</nav>
+      <h1>Allow one script URL</h1>
+      <p class="lead">By default <code>script.src</code> is refused outright. An
+        <code>ALLOW_SCRIPT_URL</code> hook can permit specific, vetted URLs and refuse everything else.</p>
+
+      <div class="card">
+        <h2>The config</h2>
+        <pre>window.DOMFortifyConfig = {
+  ALLOW_SCRIPT_URL: (url) =&gt; url.startsWith('https://cdn.jsdelivr.net/') ? url : null,
+};</pre>
+      </div>
+
+      <div class="card">
+        <h2>Try it</h2>
+        <textarea id="dirty">https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js</textarea>
+        <button id="run">Set script.src = value</button>
+        <p class="muted">Swap in <code>https://evil.example/x.js</code> to see it refused.</p>
+        <p id="note"></p>
+      </div>
+    </main>
+    <script>
+      const note = document.getElementById('note');
+      document.getElementById('run').addEventListener('click', () => {
+        const s = document.createElement('script');
+        try {
+          s.src = document.getElementById('dirty').value;
+          note.innerHTML = '<span class="status ok">accepted by the policy:</span> ' + s.src;
+        } catch (e) {
+          note.innerHTML = '<span class="status bad">refused at the sink:</span> ' + e.message;
+        }
+      });
+    </script>
+  </body>
+</html>

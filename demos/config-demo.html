@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Sanitizer config</title>
+    <meta http-equiv="Content-Security-Policy"
+          content="require-trusted-types-for 'script'; trusted-types default dompurify;" />
+    <link rel="stylesheet" href="lib/demo.css" />
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <!-- Configure BEFORE loading fortify.js. SANITIZER_CONFIG is forwarded to DOMPurify. -->
+    <script>
+      window.DOMFortifyConfig = {
+        SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p', '#text'] },
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Sanitizer config</nav>
+      <h1>Sanitizer config</h1>
+      <p class="lead">Pass a <code>SANITIZER_CONFIG</code> and every sink on the page is sanitized with
+        it. Here only a few formatting tags survive; everything else is stripped.</p>
+
+      <div class="card">
+        <h2>The config (set before fortify.js)</h2>
+        <pre>window.DOMFortifyConfig = {
+  SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p', '#text'] },
+};</pre>
+      </div>
+
+      <div class="card">
+        <h2>Try it</h2>
+        <textarea id="dirty">&lt;p&gt;keep &lt;b&gt;this&lt;/b&gt;&lt;/p&gt;&lt;div onclick="alert(1)"&gt;drop the div&lt;/div&gt;&lt;img src=x onerror="alert(2)"&gt;</textarea>
+        <button id="run">Run the sink</button>
+        <div class="muted">What landed in the DOM:</div>
+        <div class="out" id="out"></div>
+        <pre id="html" style="margin-top:10px"></pre>
+      </div>
+    </main>
+    <script>
+      window.alert = () => {};
+      const out = document.getElementById('out');
+      const run = () => {
+        out.innerHTML = document.getElementById('dirty').value;
+        document.getElementById('html').textContent = 'resulting HTML: ' + out.innerHTML;
+      };
+      document.getElementById('run').addEventListener('click', run);
+      run();
+    </script>
+  </body>
+</html>
