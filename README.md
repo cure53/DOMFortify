@@ -4,12 +4,10 @@ DOMFortify turns on Trusted Types for a page and quietly takes over the browser'
 so that old, vulnerable code like `el.innerHTML = location.hash` gets sanitized before it ever hits
 the DOM. You don't touch the code. You don't even need to know where the bug is.
 
-It's for the sites you can't fix: the legacy app nobody wants to touch, the third-party widget you
-can't patch, the 200 `innerHTML` sinks written before anyone had heard of XSS. Ship the policy once
-and the browser routes every HTML sink through a sanitizer for you.
+It's for the sites you can't easily fix: complex apps or legacy apps nobody wants to touch, the third-party widget you
+can't patch, the 2000+ `innerHTML` sinks written before anyone had heard of XSS. 
 
-> **Not secure. Just less broken.** This is a seatbelt for code you can't rewrite, not a reason to
-> stop rewriting it.
+Ship the policy once and the browser routes every HTML sink through a sanitizer for you.
 
 ## Is there a demo?
 
@@ -19,13 +17,11 @@ deliberately broken page and watch the browser neutralize them before they reach
 ## How it works
 
 Trusted Types lets a page register one `default` policy that the browser calls for every dangerous
-sink. DOMFortify is that policy. HTML goes through [DOMPurify](https://github.com/cure53/DOMPurify)
+sink. DOMFortify is that policy. 
+
+HTML goes through [DOMPurify](https://github.com/cure53/DOMPurify)
 (or any sanitizer you hand it); script sinks like `eval` and `script.src` are refused outright,
 because there is no safe way to sanitize executable code.
-
-```
-CSP enables Trusted Types  ->  default policy (DOMFortify)  ->  sanitizer  ->  DOM
-```
 
 ## Usage
 
@@ -35,7 +31,7 @@ Two parts. First, turn enforcement on with a CSP - a response header if you can 
 Content-Security-Policy: require-trusted-types-for 'script'; trusted-types default dompurify;
 ```
 
-...or a `<meta>` tag if you can't:
+...or via `<meta>` tag if you cannot set any headers:
 
 ```html
 <meta
@@ -49,12 +45,12 @@ attacker could reach. Pin both with SRI so a bad CDN day fails closed instead of
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"
+  src="https://cdn.jsdelivr.net/npm/dompurify@latest/dist/purify.min.js"
   integrity="sha384-..."
   crossorigin="anonymous"
 ></script>
 <script
-  src="https://cdn.jsdelivr.net/npm/domfortify@0.1.0/dist/fortify.min.js"
+  src="https://cdn.jsdelivr.net/npm/domfortify@latest/dist/fortify.min.js"
   integrity="sha384-..."
   crossorigin="anonymous"
 ></script>
@@ -106,10 +102,6 @@ It's a retrofit, not magic. Know the edges:
 ## Security
 
 Found a hole? Please report it privately - see [SECURITY.md](SECURITY.md). Don't open a public issue.
-
-## License
-
-`MPL-2.0 OR Apache-2.0`, the same as DOMPurify.
 
 ---
 
