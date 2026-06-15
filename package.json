@@ -1,0 +1,87 @@
+{
+  "name": "domfortify",
+  "version": "0.1.0",
+  "description": "Retrofit Trusted Types onto a legacy page: claim the realm's default policy so old DOM-XSS sinks get sanitized without touching the code.",
+  "license": "(MPL-2.0 OR Apache-2.0)",
+  "homepage": "https://github.com/cure53/DOMFortify",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cure53/DOMFortify.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cure53/DOMFortify/issues"
+  },
+  "keywords": [
+    "trusted-types",
+    "xss",
+    "dom-xss",
+    "csp",
+    "sanitizer",
+    "dompurify",
+    "security",
+    "hardening"
+  ],
+  "type": "module",
+  "main": "./dist/fortify.cjs.js",
+  "module": "./dist/fortify.es.mjs",
+  "types": "./dist/fortify.d.ts",
+  "unpkg": "./dist/fortify.min.js",
+  "jsdelivr": "./dist/fortify.min.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/fortify.d.ts",
+        "default": "./dist/fortify.es.mjs"
+      },
+      "default": {
+        "types": "./dist/fortify.d.ts",
+        "default": "./dist/fortify.cjs.js"
+      }
+    },
+    "./fortify.js": "./dist/fortify.js",
+    "./fortify.min.js": "./dist/fortify.min.js",
+    "./dist/fortify.js": "./dist/fortify.js",
+    "./dist/fortify.min.js": "./dist/fortify.min.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "SECURITY.md",
+    "README.md"
+  ],
+  "sideEffects": [
+    "./dist/fortify.js",
+    "./dist/fortify.min.js",
+    "./src/auto.ts"
+  ],
+  "scripts": {
+    "prebuild": "rimraf dist",
+    "build": "rollup -c config/rollup.config.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "prettier --check \"{src,test,config,scripts}/**/*.{ts,js,mjs}\"",
+    "format": "prettier --write \"{src,test,config,scripts}/**/*.{ts,js,mjs}\" \"**/*.md\"",
+    "test:node": "node test/node-runner.mjs",
+    "test:browser": "playwright test --config config/playwright.config.ts",
+    "test": "npm run typecheck && npm run build && npm run test:node",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@rollup/plugin-replace": "^6.0.1",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.1.1",
+    "dompurify": "^3.2.0",
+    "prettier": "^3.4.2",
+    "qunit": "^2.23.1",
+    "rimraf": "^6.0.1",
+    "rollup": "^4.28.1",
+    "rollup-plugin-dts": "^6.1.1",
+    "tslib": "^2.8.1",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "npm@10"
+}

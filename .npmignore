@@ -1,0 +1,10 @@
+# Publish dist + src + the meta files listed in package.json "files"; ignore everything dev-only.
+.github/
+config/
+test/
+scripts/
+tsconfig.json
+.editorconfig
+.prettierrc
+.nvmrc
+*.tgz

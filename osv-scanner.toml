@@ -1,0 +1,15 @@
+# OSV-Scanner configuration for DOMFortify.
+#
+# DOMFortify ships zero runtime dependencies, so the published artifact has no
+# supply-chain surface of its own. Any advisories OSV-Scanner reports come from
+# development / test / CI tooling in the lockfile, never from distributed code.
+#
+# There are no suppressions yet. If a dev-only advisory ever needs ignoring, add
+# an [[IgnoredVulns]] entry with a VERIFIED GHSA id, a reason, and a one-year
+# ignoreUntil horizon so it is re-evaluated rather than suppressed forever.
+#
+# Example (commented out):
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# ignoreUntil = 2027-06-15
+# reason = "Dev tooling only; not part of the published runtime artifact."

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify - QUnit</title>
+    <link rel="stylesheet" href="../node_modules/qunit/qunit/qunit.css" />
+  </head>
+  <body>
+    <div id="qunit"></div>
+    <div id="qunit-fixture"></div>
+    <script src="../node_modules/qunit/qunit/qunit.js"></script>
+    <script>
+      QUnit.config.autostart = false;
+      // Expose a machine-readable result for the Playwright runner.
+      QUnit.done((details) => {
+        window.__qunitResults = details;
+      });
+    </script>
+    <script type="module">
+      await import('./browser-suite.mjs');
+      QUnit.start();
+    </script>
+  </body>
+</html>
