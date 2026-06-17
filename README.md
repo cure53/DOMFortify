@@ -50,13 +50,13 @@ attacker could reach. Pin both with SRI so a bad CDN day fails closed instead of
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/dompurify@latest/dist/purify.min.js"
-  integrity="sha384-..."
+  src="https://cdn.jsdelivr.net/npm/dompurify@3.4.10/dist/purify.min.js"
+  integrity="sha384-eguRoJERj8ghOpzO//Rl7+ScQsQIR1cH+ajll7+fG+IpbNPlkZsQn9h8ccr+wPXx"
   crossorigin="anonymous"
 ></script>
 <script
-  src="https://cdn.jsdelivr.net/npm/domfortify@latest/dist/fortify.min.js"
-  integrity="sha384-..."
+  src="https://cdn.jsdelivr.net/npm/domfortify@0.1.0/dist/fortify.min.js"
+  integrity="sha384-K9huyIl4RBuiqJ7yfQIjf5T8Zz+BbxYMTXgfC8rNhXZNdGRtzCUb5AtDQKI5G6IE"
   crossorigin="anonymous"
 ></script>
 ```
