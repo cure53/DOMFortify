@@ -12,7 +12,7 @@ the DOM. You don't touch the code. You don't even need to know where the bug is.
 It's for the sites you can't easily fix: complex apps or legacy apps nobody wants to touch, the third-party widget you
 can't patch, the 2000+ `innerHTML` sinks written before anyone had heard of XSS.
 
-**Just ship the policy, and the browser automtically protects every HTML sink with DOMPurify or other sanitizers.**
+**Just ship the policy, and the browser automatically protects every HTML sink with DOMPurify or other sanitizers.**
 
 ## Is there a demo?
 
@@ -188,6 +188,12 @@ It's a retrofit, not magic. Know the edges:
 - **Trusted Types sinks only.** Inline handlers (`onclick=`), `style`, and `href` URLs aren't TT
   sinks. Close those with a real `script-src` that drops `'unsafe-inline'`.
 - **One sanitizer.** A bypass in the sanitizer is a bypass in everything it guards.
+- **It sanitizes a string, then the sink re-parses it.** The `default` policy returns sanitized HTML as a
+  string that the browser parses again in context - the serialize/re-parse step that can re-open
+  [mutation XSS](https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#sanitizer-security-mxss).
+  DOMFortify leans on the sanitizer's own mXSS hardening (DOMPurify's, by default) to close it; a weaker
+  sanitizer reopens it. A browser-native sink-level sanitizer avoids the round trip entirely - see
+  [Relationship to the platform](#relationship-to-the-platform).
 
 ## Security
 
@@ -196,11 +202,17 @@ Found a hole? Please report it privately - see [SECURITY.md](SECURITY.md). Don't
 ---
 
 Built on the shoulders of Frederik Braun's
-[Perfect types with setHTML()](https://frederikbraun.de/perfect-types-with-sethtml.html) and Jun
+[Perfect types with setHTML()](https://frederikbraun.de/perfect-types-with-sethtml.html) and his Mozilla explainer [Trusted or Sanitized HTML](https://github.com/mozilla/explainers/blob/main/trusted-or-sanitized-html.md), plus Jun
 Kokatsu's "Perfect Types". By [Cure53](https://cure53.de).
+
+## Relationship to the platform
+
+DOMFortify implements, in userland and available today, the model Mozilla has proposed for standardization in [Trusted or Sanitized HTML](https://github.com/mozilla/explainers/blob/main/trusted-or-sanitized-html.md) (Frederik Braun, 2026): an opt-in CSP keyword that makes the browser sanitize HTML at every sink with no code changes, and refuse script sinks it cannot vet. Where that proposal adds a browser-native `trusted-types 'sanitize-html'` keyword that sanitizes each sink in its parsing context, DOMFortify reaches the same outcome now through a `default` Trusted Types policy backed by a sanitizer. When browsers ship `'sanitize-html'`, DOMFortify becomes a thin compatibility shim or simply unnecessary - which is the goal, not a threat.
+
+The one design difference worth stating plainly: the platform proposal sanitizes the parsed fragment directly at the sink, in context, avoiding a serialize/re-parse round trip. DOMFortify's policy returns a sanitized string that the sink re-parses, so it depends on the sanitizer's mutation-XSS hardening to stay safe (see [What it won't do](#what-it-wont-do)). With DOMPurify as the sanitizer that surface is well covered; with a weaker sanitizer it may not be.
 
 ## Prior Art
 
 DOMFortify builds on established browser and ecosystem concepts rather than claiming to invent Trusted Types-based HTML sanitization from scratch. The underlying enforcement mechanism is the browser-native [Trusted Types API](https://developer.mozilla.org/en-US/docs/Web/API/Trusted_Types_API), and the sanitizer commonly used with DOMFortify, [DOMPurify](https://github.com/cure53/DOMPurify), already provides Trusted Types integration. Earlier tooling such as [`melloware/csp-webpack-plugin`](https://github.com/melloware/csp-webpack-plugin) and its Rspack counterpart [`rspack-contrib/csp-rspack-plugin`](https://github.com/rspack-contrib/csp-rspack-plugin) also demonstrated the idea of installing a DOMPurify-backed `default` Trusted Types policy to retrofit protection for legacy `innerHTML`-style sinks.
 
-DOMFortify differs in its focus and packaging: it is a standalone runtime hardening layer, not a bundler-side CSP helper, and it emphasizes safer defaults for script-like sinks, sanitizer abstraction, route-aware configuration, CSP/telemetry integration, and defensive handling of configuration and prototype-pollution edge cases. Related ecosystem work includes framework- or type-system-oriented approaches such as [Angular’s Trusted Types integration](https://angular.dev/best-practices/security), Google’s [`safevalues`](https://github.com/google/safevalues), and earlier Trusted Types integrations collected by the [W3C Trusted Types project](https://github.com/w3c/trusted-types/wiki/Integrations).
+DOMFortify differs in its focus and packaging: it is a standalone runtime hardening layer, not a bundler-side CSP helper, and it emphasizes safer defaults for script-like sinks, sanitizer abstraction, route-aware configuration, CSP/telemetry integration, and defensive handling of configuration and prototype-pollution edge cases. Related ecosystem work includes framework- or type-system-oriented approaches such as [Angular’s Trusted Types integration](https://angular.dev/best-practices/security), Google’s [`safevalues`](https://github.com/google/safevalues), and earlier Trusted Types integrations collected by the [W3C Trusted Types project](https://github.com/w3c/trusted-types/wiki/Integrations). The browser-native direction this whole approach points toward is set out in Mozilla's [Trusted or Sanitized HTML](https://github.com/mozilla/explainers/blob/main/trusted-or-sanitized-html.md) explainer (see [Relationship to the platform](#relationship-to-the-platform)).
