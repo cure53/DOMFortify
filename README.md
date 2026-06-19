@@ -48,6 +48,16 @@ Content-Security-Policy: require-trusted-types-for 'script'; trusted-types defau
 />
 ```
 
+...or, when you can place neither, let DOMFortify inject that `<meta>` for you with one config flag:
+
+```js
+window.DOMFortifyConfig = { INJECT_META: true };
+```
+
+This is best-effort and only takes when DOMFortify runs during the initial parse (inline, first thing
+in `<head>`); a header or hand-placed `<meta>` is still sturdier. Confirm it took with
+`status().enforcementActive`. Details in [Turning enforcement on](#turning-enforcement-on-advanced).
+
 Second, load the sanitizer and then DOMFortify **first thing in `<head>`**, before anything an attacker
 could reach. Pin both with SRI so a bad CDN day fails closed instead of open:
 
