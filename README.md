@@ -82,11 +82,11 @@ npm install domfortify
 
 The package ships three builds and TypeScript types, picked automatically by your tooling:
 
-| Build               | File                  | What it does                                                    |
-| ------------------- | --------------------- | --------------------------------------------------------------- |
-| ESM                 | `dist/fortify.es.mjs` | `import { init } from 'domfortify'` - you call `init()`          |
-| CommonJS            | `dist/fortify.cjs.js` | `const { init } = require('domfortify')` - you call `init()`    |
-| IIFE (auto-install) | `dist/fortify.min.js` | self-installs on load; this is the `<script>` and CDN build     |
+| Build               | File                  | What it does                                                 |
+| ------------------- | --------------------- | ------------------------------------------------------------ |
+| ESM                 | `dist/fortify.es.mjs` | `import { init } from 'domfortify'` - you call `init()`      |
+| CommonJS            | `dist/fortify.cjs.js` | `const { init } = require('domfortify')` - you call `init()` |
+| IIFE (auto-install) | `dist/fortify.min.js` | self-installs on load; this is the `<script>` and CDN build  |
 
 The module builds do **not** auto-install, so you call `init()` yourself:
 
