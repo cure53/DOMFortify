@@ -226,8 +226,20 @@
         if (installed)
             return cachedStatus;
         installed = true;
+        // The violation reporter is observability, never control flow. Wrap it so a throwing ON_VIOLATION
+        // can neither abort init() (which would leave us installed with a null status) nor turn a
+        // fail-closed sink - one that should quietly return null - into a thrown exception.
         const onv = cfg(options, 'ON_VIOLATION');
-        const report = typeof onv === 'function' ? onv : () => { };
+        const report = typeof onv === 'function'
+            ? (code, detail) => {
+                try {
+                    onv(code, detail);
+                }
+                catch {
+                    /* a misbehaving reporter must never break the policy */
+                }
+            }
+            : () => { };
         const status = {
             version: VERSION,
             ttSupported: !!TT,
@@ -242,9 +254,11 @@
         const done = (reason, code) => {
             status.protected = status.defaultPolicyOwned && status.enforcementActive && status.sanitizerReady;
             status.reason = reason;
-            if (code)
-                report(code, status);
+            // Freeze the snapshot first, then report it: the reporter sees exactly the authoritative status
+            // that gets cached and returned, and has no window to mutate the cached copy.
             cachedStatus = Object.freeze({ ...status });
+            if (code)
+                report(code, cachedStatus);
             return cachedStatus;
         };
         const url = loc && typeof loc.href !== 'undefined' ? String(loc.href) : '';
