@@ -1,6 +1,8 @@
 # DOMFortify
 
-[![npm](https://img.shields.io/npm/v/domfortify.svg)](https://www.npmjs.com/package/domfortify) [![License](https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg)](https://github.com/cure53/DOMFortify/blob/main/LICENSE) ![npm package minimized gzipped size](https://img.shields.io/bundlejs/size/domfortify?color=%233C1&label=gzip) [![Build & Test](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml) [![CodeQL](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge)](https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify) [![Socket Badge](https://badge.socket.dev/npm/package/domfortify/latest)](https://badge.socket.dev/npm/package/domfortify/latest)
+[![npm](https://img.shields.io/npm/v/domfortify.svg)](https://www.npmjs.com/package/domfortify) [![License](https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg)](https://github.com/cure53/DOMFortify/blob/main/LICENSE) ![npm package minimized gzipped size](https://img.shields.io/bundlejs/size/domfortify?color=%233C1&label=gzip) [![Build & Test](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml) [![CodeQL](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml) 
+
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13287/badge)](https://www.bestpractices.dev/projects/13287) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge)](https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify) [![Socket Badge](https://badge.socket.dev/npm/package/domfortify/latest)](https://badge.socket.dev/npm/package/domfortify/latest)
 
 DOMFortify turns Trusted Types on for a page and quietly takes over the browser's `default` policy, so
 that old, vulnerable code like `el.innerHTML = location.hash` gets sanitized before it ever reaches the
@@ -47,6 +49,16 @@ Content-Security-Policy: require-trusted-types-for 'script'; trusted-types defau
   content="require-trusted-types-for 'script'; trusted-types default dompurify"
 />
 ```
+
+...or, when you can place neither, let DOMFortify inject that `<meta>` for you with one config flag:
+
+```js
+window.DOMFortifyConfig = { INJECT_META: true };
+```
+
+This is best-effort and only takes when DOMFortify runs during the initial parse (inline, first thing
+in `<head>`); a header or hand-placed `<meta>` is still sturdier. Confirm it took with
+`status().enforcementActive`. Details in [Turning enforcement on](#turning-enforcement-on-advanced).
 
 Second, load the sanitizer and then DOMFortify **first thing in `<head>`**, before anything an attacker
 could reach. Pin both with SRI so a bad CDN day fails closed instead of open:
