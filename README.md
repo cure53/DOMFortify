@@ -15,6 +15,12 @@ XSS.
 **Ship the policy, and the browser routes every HTML sink through DOMPurify (or any sanitizer you give
 it) on its way into the DOM.**
 
+New here? The [wiki](https://github.com/cure53/DOMFortify/wiki) has the deeper docs:
+[Installation and Usage](https://github.com/cure53/DOMFortify/wiki/Installation-and-Usage),
+[How It Works](https://github.com/cure53/DOMFortify/wiki/How-It-Works) with data-flow diagrams, the
+[Security Goals and Threat Model](https://github.com/cure53/DOMFortify/wiki/Security-Goals-and-Threat-Model),
+and [Risks and Footguns](https://github.com/cure53/DOMFortify/wiki/Risks-and-Footguns).
+
 ## Is there a demo?
 
 Of course. [Play with DOMFortify](https://cure53.de/fortify) - throw payloads at a deliberately broken
@@ -29,9 +35,11 @@ HTML goes through [DOMPurify](https://github.com/cure53/DOMPurify) (or any sanit
 sinks like `eval` and `script.src` are refused outright, because there is no safe way to sanitize
 executable code.
 
-It does two jobs and no more: own the `default` policy, and route sinks. Whether enforcement is even on
-is a CSP's job, not the library's - so DOMFortify reports honestly, through `status()`, whether the page
-is actually protected.
+It does two jobs and no more: own the `default` policy, and route sinks. Whether enforcement is on comes
+from a CSP - a response header, a parse-time `<meta>`, or DOMFortify's opt-in `INJECT_META` - and either
+way DOMFortify reports honestly, through `status()`, whether the page is actually protected. For the full
+mental model with data-flow diagrams, see
+[How It Works](https://github.com/cure53/DOMFortify/wiki/How-It-Works) in the wiki.
 
 ## Quick start (CDN)
 
@@ -248,9 +256,11 @@ passed its smoke test. `reason` explains the current state in one line. Demo: [s
 
 ## What it won't do
 
-It's a retrofit, not magic. Know the edges:
+It's a retrofit, not magic. Know the edges (the
+[Risks and Footguns](https://github.com/cure53/DOMFortify/wiki/Risks-and-Footguns) wiki page goes deeper):
 
-- **It needs the CSP.** No enforcement, no protection - and it'll tell you so via `status()`.
+- **Enforcement has to be on.** No enforcement, no protection, and it'll tell you so via `status()`. Turn
+  it on with a header, a parse-time `<meta>`, or `INJECT_META` (next bullet). A header is sturdiest.
 - **`INJECT_META` is best-effort.** A script-inserted `<meta>` CSP is ignored unless the parser inserts
   it during the initial parse. Don't rely on it where a header or hand-placed `<meta>` is an option;
   check `status()` to see whether enforcement actually took.
@@ -268,6 +278,10 @@ It's a retrofit, not magic. Know the edges:
   [Relationship to the platform](#relationship-to-the-platform).
 
 ## Security
+
+For what DOMFortify defends, what it assumes, and what stays out of scope, see the
+[Security Goals and Threat Model](https://github.com/cure53/DOMFortify/wiki/Security-Goals-and-Threat-Model)
+in the wiki.
 
 Found a hole? Please report it privately - see [SECURITY.md](SECURITY.md). Don't open a public issue.
 
