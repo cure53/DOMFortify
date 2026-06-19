@@ -78,18 +78,6 @@ interface DOMFortifyApi {
     status(): Readonly<DOMFortifyStatus> | null;
 }
 
-/**
- * DOMFortify - bolt Trusted Types onto a legacy page so old DOM-XSS sinks get sanitized
- * without touching the code. See README for the full picture; the short version:
- *
- *  - Claims the realm's `default` Trusted Types policy and routes every HTML sink through a
- *    sanitizer. Script sinks (eval, javascript: URLs, script.src) are refused.
- *  - Does NOT switch enforcement on; a CSP does (header best, `<meta>` works).
- *  - Must load FIRST: the default policy is winner-takes-all.
- *  - Fails closed: no sanitizer means sinks throw, never leak.
- *  - Only covers Trusted Types sinks; inline handlers / style / URL props stay open.
- */
-
 declare function init(options?: DOMFortifyConfig): Readonly<DOMFortifyStatus>;
 declare function status(): Readonly<DOMFortifyStatus> | null;
 declare const DOMFortify: DOMFortifyApi;

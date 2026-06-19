@@ -1,40 +1,40 @@
-/*! DOMFortify 0.1.0 | (c) Cure53 and contributors | (MPL-2.0 OR Apache-2.0) */
-const VERSION = '0.1.0';
-// Grab natives up front so later prototype-pollution or clobbering can't swap them out.
+/*! DOMFortify 0.2.0 | (c) Cure53 and contributors | (MPL-2.0 OR Apache-2.0) */
+// Cached up front so later prototype pollution or clobbering can't swap hasOwnProperty out.
 const hasOwn = Object.prototype.hasOwnProperty;
-const root = typeof globalThis !== 'undefined' ? globalThis : window;
-const doc = typeof document !== 'undefined' ? document : undefined;
-const loc = root.location;
-const own = (obj, key) => obj != null && hasOwn.call(obj, key);
-const cfg = (obj, key) => (own(obj, key) ? obj[key] : undefined);
-const clip = (s) => String(s).slice(0, 80);
-const emsg = (e) => String(e?.message);
-const TT = root.trustedTypes;
-let installed = false;
-let cachedStatus = null;
-// Are we actually enforced? Under enforcement with no default policy yet, a sink write throws.
-// Run this BEFORE we install our policy, or it would always read as "off".
-function enforcementActive() {
-    try {
-        doc.createElement('div').innerHTML = 'x';
-        return false;
-    }
-    catch {
-        return true;
-    }
+/** True only for an own (non-inherited) property, so a polluted prototype is never consulted. */
+function own(obj, key) {
+    return obj != null && hasOwn.call(obj, key);
 }
-// Copy config off the caller's object, skipping keys that could pollute. Don't JSON-clone - that
-// would corrupt RegExp and functions.
+/** Read an own key off a config-like object, else undefined. Never walks the prototype chain. */
+function cfg(obj, key) {
+    return own(obj, key) ? obj[key] : undefined;
+}
+/** A short, safe preview of an arbitrary value, for violation reports. */
+function clip(s) {
+    return String(s).slice(0, 80);
+}
+/** Best-effort error message, tolerant of non-Error throws. */
+function emsg(e) {
+    return String(e?.message);
+}
+/**
+ * Copy an object's own keys, dropping the three that could pollute a prototype. Deliberately not a
+ * JSON clone: that would corrupt the RegExps and functions a sanitizer config may carry.
+ */
 function shallowCopy(obj) {
     const out = {};
     for (const k in obj) {
-        if (hasOwn.call(obj, k) && k !== '__proto__' && k !== 'constructor' && k !== 'prototype')
+        if (hasOwn.call(obj, k) && k !== '__proto__' && k !== 'constructor' && k !== 'prototype') {
             out[k] = obj[k];
+        }
     }
     return out;
 }
-// Test a URL against one or more patterns. String = substring match; RegExp = test. Used for both
-// EXCLUDE and URL_CONFIG, always against the realm's own location.href.
+/**
+ * Test a URL against one or more patterns. A string matches as a substring (the empty string never
+ * matches); a RegExp is test()ed, and a pattern that throws is treated as no match. Used for both
+ * EXCLUDE and URL_CONFIG, always against the realm's own location.href.
+ */
 function urlMatches(pattern, url) {
     if (pattern == null)
         return false;
@@ -51,24 +51,53 @@ function urlMatches(pattern, url) {
                     return true;
             }
             catch {
-                /* ignore a pattern that throws */
+                /* a pattern that throws is treated as no match */
             }
         }
     }
     return false;
 }
-// Best-effort CSP <meta> injection (opt-in). IMPORTANT: a <meta> CSP is honored only when the PARSER
-// inserts it, so document.write during the initial parse is the only path that can actually switch
-// enforcement on - and only for content parsed afterwards. A node appended after parsing is ignored by
-// the CSP engine; we still add it (harmless) but report that injection did NOT take. Returns true only
-// when written during parse.
+
+/**
+ * DOMFortify - bolt Trusted Types onto a legacy page so old DOM-XSS sinks get sanitized
+ * without touching the code. See README for the full picture; the short version:
+ *
+ *  - Claims the realm's `default` Trusted Types policy and routes every HTML sink through a
+ *    sanitizer. Script sinks (eval, javascript: URLs, script.src) are refused.
+ *  - Does NOT switch enforcement on; a CSP does (header best, `<meta>` works).
+ *  - Must load FIRST: the default policy is winner-takes-all.
+ *  - Fails closed: no sanitizer means sinks throw, never leak.
+ *  - Only covers Trusted Types sinks; inline handlers / style / URL props stay open.
+ */
+const VERSION = '0.2.0';
+// Natives captured up front, so later prototype pollution or clobbering can't swap them out.
+const root = typeof globalThis !== 'undefined' ? globalThis : window;
+const doc = typeof document !== 'undefined' ? document : undefined;
+const loc = root.location;
+const TT = root.trustedTypes;
+let installed = false;
+let cachedStatus = null;
+// --- environment probes --------------------------------------------------------------------------
+// Are we actually enforced? Under enforcement with no default policy yet, a sink write throws. Must
+// run BEFORE we install our policy, or it would always read as "off".
+function enforcementActive() {
+    try {
+        doc.createElement('div').innerHTML = 'x';
+        return false;
+    }
+    catch {
+        return true;
+    }
+}
+// Best-effort CSP <meta> injection (opt-in). A <meta> CSP is honored only when the PARSER inserts it,
+// so document.write during the initial parse is the one path that can switch enforcement on - and only
+// for content parsed afterwards. We return true only on that path. After parse we still append the node
+// (harmless) but report that it did NOT take.
 //
-// `content` is the trusted CSP directive built from config (the derived default, or META_DIRECTIVE).
-// META_DIRECTIVE is developer-controlled and is expected to be trusted, but since this path reaches
-// document.write we still strip the characters that could break out of the content="..." attribute or
-// the <meta> tag. A real CSP directive never contains ", <, >, or newlines (single quotes, e.g.
-// 'script', are kept - they are harmless inside the double-quoted attribute), so this is lossless for
-// valid input and neutralizes a hostile or malformed directive. Defense in depth.
+// `content` is the trusted directive built from config. META_DIRECTIVE is developer-controlled, but
+// because this path reaches document.write we still strip the characters that could break out of the
+// content="..." attribute. A valid directive never contains ", <, >, or newlines, so the strip is
+// lossless for good input and neutralizes a hostile or malformed one. Defense in depth.
 function injectMeta(content) {
     if (!doc)
         return false;
@@ -95,12 +124,107 @@ function injectMeta(content) {
     }
     return false;
 }
+// --- config resolution (all own-key only, so a polluted prototype can't loosen anything) ---------
+// First URL_CONFIG rule whose `match` hits, else null. Own-key reads only, so a polluted prototype
+// can neither inject a rule nor reach one.
+function selectOverride(options, url) {
+    const rules = cfg(options, 'URL_CONFIG');
+    if (!Array.isArray(rules))
+        return null;
+    for (let i = 0; i < rules.length; i++) {
+        const r = rules[i];
+        if (r && urlMatches(r.match, url))
+            return r;
+    }
+    return null;
+}
+// Normalize whatever the caller handed us into a sanitizer with a `.sanitize` method, or null.
+// DOMPurify's export is itself a callable factory that ALSO carries `.sanitize`, so we must check for
+// `.sanitize` FIRST - otherwise we'd wrap the factory and call the wrong thing. A bare function (e.g. a
+// Sanitizer-API adapter) has no `.sanitize` and falls through to the function case.
+function resolveSanitizer(raw) {
+    if (raw && typeof raw.sanitize === 'function')
+        return raw;
+    if (typeof raw === 'function')
+        return { sanitize: raw };
+    return null;
+}
+// The trusted-types directive for INJECT_META. META_DIRECTIVE wins; otherwise we list the policies
+// that will exist: our own `default`, plus `dompurify` unless a bare-function sanitizer is in use.
+function metaDirective(md, functionSanitizer) {
+    if (typeof md === 'string' && md)
+        return md;
+    const ttNames = functionSanitizer ? 'default' : 'default dompurify';
+    return `require-trusted-types-for 'script'; trusted-types ${ttNames};`;
+}
+// Exercise the sanitizer once so a broken one fails loudly here, not silently on the first real write.
+// It must return a string; anything else would inject junk into every sink.
+function smokeTest(sanitizer, config) {
+    try {
+        const out = sanitizer.sanitize('<b>x</b>', config);
+        return typeof out === 'string'
+            ? { ready: true, error: null }
+            : { ready: false, error: 'sanitize() did not return a string' };
+    }
+    catch (e) {
+        return { ready: false, error: emsg(e) };
+    }
+}
+// --- the default policy --------------------------------------------------------------------------
+// createHTML: route through the sanitizer, fail closed on any problem. `reentry` is true only while
+// the sanitizer parses our input internally (inert and synchronous), so handing the raw string back
+// is safe and keeps us alive if the sanitizer's own sink re-enters us.
+function makeSanitizeHTML(sanitizer, config, ready, report) {
+    let reentry = false;
+    return (s) => {
+        if (!ready) {
+            report('sanitizer-unavailable', { sink: 'createHTML' });
+            return null; // fail closed
+        }
+        if (reentry)
+            return s;
+        try {
+            reentry = true;
+            return sanitizer.sanitize(s, config);
+        }
+        catch (e) {
+            report('sanitize-threw', { error: emsg(e) });
+            return null; // fail closed - never hand back raw markup on error
+        }
+        finally {
+            reentry = false;
+        }
+    };
+}
+// createScript / createScriptURL: code has no safe subset, so refuse by default. A caller hook may
+// allow specific values; if it throws or returns a non-string, we refuse.
+function makeScriptHook(kind, fn, report) {
+    return (s) => {
+        if (fn) {
+            let r;
+            try {
+                r = fn(s);
+            }
+            catch (e) {
+                report('script-hook-threw', { sink: kind, error: emsg(e) });
+                return null; // fail closed
+            }
+            if (typeof r === 'string') {
+                report('script-sink-allowed', { sink: kind });
+                return r;
+            }
+        }
+        report('script-sink-refused', { sink: kind, sample: clip(s) });
+        return null;
+    };
+}
+// --- public entry point --------------------------------------------------------------------------
 function init(options = {}) {
     if (installed)
         return cachedStatus;
     installed = true;
     const onv = cfg(options, 'ON_VIOLATION');
-    const report = (typeof onv === 'function' ? onv : () => { });
+    const report = typeof onv === 'function' ? onv : () => { };
     const status = {
         version: VERSION,
         ttSupported: !!TT,
@@ -121,9 +245,9 @@ function init(options = {}) {
         return cachedStatus;
     };
     const url = loc && typeof loc.href !== 'undefined' ? String(loc.href) : '';
-    // EXCLUDE: on a matching URL, DOMFortify stays completely out of the way - no policy, no meta. It
-    // does NOT install a passthrough (that would be a silent XSS hole); under globally delivered
-    // enforcement, excluded pages are the developer's responsibility. Reported via status.excluded.
+    // EXCLUDE: on a match, stay completely out of the way - no policy, no meta. We do NOT install a
+    // passthrough (that would be a silent XSS hole); under globally delivered enforcement, excluded
+    // pages are the developer's responsibility. Reported via status.excluded.
     if (urlMatches(cfg(options, 'EXCLUDE'), url)) {
         status.excluded = true;
         return done('URL matched EXCLUDE; DOMFortify is intentionally inactive on this page.', 'excluded-by-url');
@@ -131,46 +255,24 @@ function init(options = {}) {
     if (!TT || typeof TT.createPolicy !== 'function') {
         return done('Trusted Types not supported; library is inert. Sinks are NOT routed.', 'tt-unsupported');
     }
-    // URL_CONFIG: the first rule whose `match` hits supplies per-URL overrides. `eff(key)` reads that
-    // rule's own key when present, else falls back to the base config - both own-key only, so a polluted
-    // prototype can neither inject a rule nor loosen a refusal.
-    let override = null;
-    const rules = cfg(options, 'URL_CONFIG');
-    if (Array.isArray(rules)) {
-        for (let i = 0; i < rules.length; i++) {
-            const r = rules[i];
-            if (r && urlMatches(r.match, url)) {
-                override = r;
-                break;
-            }
-        }
-    }
+    // Resolve config once. `eff(key)` reads the matching URL_CONFIG rule's own key when present, else the
+    // base config - both own-key only. Nothing is re-read later, so runtime clobbering can't retarget
+    // the policy after this point either.
+    const override = selectOverride(options, url);
     const eff = (key) => (override && own(override, key) ? override[key] : cfg(options, key));
-    // INJECT_META (opt-in, best-effort - see injectMeta and the README). We only attempt it when TT is
-    // supported; the directive lists the policies that will exist: our own `default`, plus `dompurify`
-    // unless a bare-function sanitizer (e.g. the native Sanitizer API) is in use. META_DIRECTIVE overrides.
+    // INJECT_META (opt-in, best-effort - see injectMeta and the README).
     if (cfg(options, 'INJECT_META') === true) {
-        const md = cfg(options, 'META_DIRECTIVE');
-        const ttNames = typeof eff('SANITIZER') === 'function' ? 'default' : 'default dompurify';
-        const directive = typeof md === 'string' && md ? md : `require-trusted-types-for 'script'; trusted-types ${ttNames};`;
+        const directive = metaDirective(cfg(options, 'META_DIRECTIVE'), typeof eff('SANITIZER') === 'function');
         status.metaInjected = injectMeta(directive);
         report('meta-injection-attempted', { directive, written: status.metaInjected });
     }
     status.enforcementActive = enforcementActive();
-    // Resolve config once, reading own keys only so a polluted prototype can't supply a value - and,
-    // most importantly, can't loosen a refusal. Nothing is re-read later, so runtime clobbering can't
-    // retarget the policy either. URL_CONFIG overrides are applied here via `eff`.
+    // Sanitizer: explicit SANITIZER (possibly per-URL), else window.DOMPurify. Config is forwarded
+    // verbatim as the second argument, copied to drop pollution-prone keys.
     let rawSan = eff('SANITIZER');
     if (rawSan === undefined)
         rawSan = root.DOMPurify;
-    // DOMPurify's export is itself a callable function (the factory) that also exposes `.sanitize`, so
-    // check for a `.sanitize` method FIRST - otherwise we'd wrap the factory and call the wrong thing. A
-    // bare function (e.g. a Sanitizer-API adapter) has no `.sanitize` and falls through to the function case.
-    const DP = rawSan && typeof rawSan.sanitize === 'function'
-        ? rawSan
-        : typeof rawSan === 'function'
-            ? { sanitize: rawSan }
-            : null;
+    const sanitizer = resolveSanitizer(rawSan);
     const rawCfg = eff('SANITIZER_CONFIG');
     const sanitizeConfig = rawCfg && typeof rawCfg === 'object' ? shallowCopy(rawCfg) : undefined;
     // Sink openers count only if they're own functions, so prototype pollution can never open a sink.
@@ -178,66 +280,19 @@ function init(options = {}) {
     const asuCand = eff('ALLOW_SCRIPT_URL');
     const allowScript = typeof asCand === 'function' ? asCand : null;
     const allowScriptURL = typeof asuCand === 'function' ? asuCand : null;
-    // Smoke-test once so a broken sanitizer fails loudly here, not silently on the first real write. It
-    // must return a string - a sanitizer that returns anything else would otherwise inject junk.
     let sanitizerReady = false;
-    if (DP && typeof DP.sanitize === 'function') {
-        try {
-            sanitizerReady = typeof DP.sanitize('<b>x</b>', sanitizeConfig) === 'string';
-            if (!sanitizerReady)
-                report('sanitizer-smoketest-failed', { error: 'sanitize() did not return a string' });
-        }
-        catch (e) {
-            report('sanitizer-smoketest-failed', { error: emsg(e) });
-        }
+    if (sanitizer) {
+        const result = smokeTest(sanitizer, sanitizeConfig);
+        sanitizerReady = result.ready;
+        if (!result.ready)
+            report('sanitizer-smoketest-failed', { error: result.error });
     }
     status.sanitizerReady = sanitizerReady;
-    // `reentry` is true only while the sanitizer parses our input internally - inert and synchronous - so
-    // handing the raw string straight back is safe, and keeps us alive if its own sink re-enters us.
-    let reentry = false;
-    const sanitizeHTML = (s) => {
-        if (!sanitizerReady) {
-            report('sanitizer-unavailable', { sink: 'createHTML' });
-            return null; // fail closed
-        }
-        if (reentry)
-            return s;
-        try {
-            reentry = true;
-            return DP.sanitize(s, sanitizeConfig);
-        }
-        catch (e) {
-            report('sanitize-threw', { error: emsg(e) });
-            return null; // fail closed - never hand back raw markup on error
-        }
-        finally {
-            reentry = false;
-        }
-    };
-    // Code has no safe subset, so refuse by default. A caller hook may allow specific values; if it throws
-    // or returns a non-string, we refuse.
-    const scriptHook = (kind, fn) => (s) => {
-        if (fn) {
-            let r;
-            try {
-                r = fn(s);
-            }
-            catch (e) {
-                report('script-hook-threw', { sink: kind, error: emsg(e) });
-                return null; // fail closed
-            }
-            if (typeof r === 'string') {
-                report('script-sink-allowed', { sink: kind });
-                return r;
-            }
-        }
-        report('script-sink-refused', { sink: kind, sample: clip(s) });
-        return null;
-    };
+    // createHTML closes over sanitizeConfig; the script hooks refuse unless an own-function hook allows.
     const policyDef = {
-        createHTML: sanitizeHTML,
-        createScript: scriptHook('createScript', allowScript),
-        createScriptURL: scriptHook('createScriptURL', allowScriptURL),
+        createHTML: makeSanitizeHTML(sanitizer, sanitizeConfig, sanitizerReady, report),
+        createScript: makeScriptHook('createScript', allowScript, report),
+        createScriptURL: makeScriptHook('createScriptURL', allowScriptURL, report),
     };
     // Did someone grab the default slot first? We can't evict them and won't vouch for them.
     if (TT.defaultPolicy) {

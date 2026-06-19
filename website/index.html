@@ -160,7 +160,7 @@
   <main class="shell">
     <header>
       <div class="eyebrow">
-        <span class="pill">DOMFortify 0.1 "Rampart"</span>
+        <span class="pill">DOMFortify 0.2 "Rampart"</span>
         <span class="pill">library: fortify.js</span>
         <span class="pill" id="versionPill">DOMPurify: loading...</span>
         <span class="pill" id="backendPill">backend: -</span>
@@ -172,10 +172,13 @@
         gets sanitized by the browser - unchanged. Nothing registers a policy by hand; the library does it.
       </p>
       <div class="badges" aria-label="Project badges">
+        <a href="https://www.npmjs.com/package/domfortify"><img src="https://img.shields.io/npm/v/domfortify.svg" alt="npm"></a>
         <a href="https://github.com/cure53/DOMFortify/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg" alt="License"></a>
-        <a href="https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml"><img src="https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg" alt="Build &amp; Test"></a>
-        <a href="https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml"><img src="https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg" alt="CodeQL"></a>
+        <img src="https://img.shields.io/bundlejs/size/domfortify?color=%233C1&amp;label=gzip" alt="gzip size">
+        <a href="https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml"><img src="https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg?branch=main" alt="Build &amp; Test"></a>
+        <a href="https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml"><img src="https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg?branch=main" alt="CodeQL"></a>
         <a href="https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify"><img src="https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge" alt="OpenSSF Scorecard"></a>
+        <a href="https://badge.socket.dev/npm/package/domfortify/latest"><img src="https://badge.socket.dev/npm/package/domfortify/latest" alt="Socket"></a>
       </div>
     </header>
 
@@ -325,9 +328,9 @@ function renderInnerHTML(value) {
     </section>
 
     <section class="preview-card" id="source" aria-label="fortify.js source">
-      <div class="card-header"><h2>fortify.js - the whole library</h2><span class="meta">the CSP plus this one file is all of DOMFortify</span></div>
+      <div class="card-header"><h2>fortify.js - the core idea, condensed</h2><span class="meta">the shape of the library, trimmed for reading; canonical source: <a href="https://github.com/cure53/DOMFortify/blob/main/src/fortify.ts">src/fortify.ts</a></span></div>
       <pre id="sourceCode" style="max-height:620px; margin:0; border-radius:0;">/*!
- * DOMFortify 0.1.0 - bolt Trusted Types onto a legacy page so old DOM-XSS sinks get sanitized
+ * DOMFortify 0.2.0 - bolt Trusted Types onto a legacy page so old DOM-XSS sinks get sanitized
  * without touching the code.
  *
  * It claims the realm's `default` Trusted Types policy. From then on, every innerHTML / outerHTML /
@@ -359,6 +362,15 @@ function renderInnerHTML(value) {
  *   ALLOW_SCRIPT      function(code) =&gt; string|null - return a string to allow that exact code, else
  *   ALLOW_SCRIPT_URL  function(url)  =&gt; string|null - it's refused. Both refuse everything by default.
  *   ON_VIOLATION      function(code, detail) - fires on every notable event; handy for report-only.
+ *   EXCLUDE           URL pattern(s) (string substring or RegExp) where DOMFortify stays fully inactive:
+ *                     it claims no policy and injects no meta. Matched against location.href.
+ *   URL_CONFIG        per-URL overrides; the first matching rule's keys override the base config.
+ *   INJECT_META       opt-in (default off): best-effort inject of the enabling CSP &lt;meta&gt;. Works only
+ *                     during the initial parse; a response header is strongly preferred. See README.
+ *   META_DIRECTIVE    override the full trusted-types directive used when INJECT_META is on (advanced).
+ *
+ * The body below is condensed for reading - it shows the shape, not the byte-for-byte build. The
+ * canonical, current source is src/fortify.ts in the repository.
  */
 ((global) =&gt; {
   'use strict';
@@ -404,7 +416,7 @@ function renderInnerHTML(value) {
     const report = typeof onv === 'function' ? onv : () =&gt; {};
 
     const status = {
-      version: '0.1.0',
+      version: '0.2.0',
       ttSupported: !!TT,
       enforcementActive: false,
       defaultPolicyOwned: false,
