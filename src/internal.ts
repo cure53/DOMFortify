@@ -23,9 +23,17 @@ export function clip(s: unknown): string {
   return String(s).slice(0, 80);
 }
 
-/** Best-effort error message, tolerant of non-Error throws. */
+/**
+ * Best-effort error message, tolerant of non-Error throws. Must never throw itself: it runs inside
+ * init()'s catch and several sink catches, so a hostile error whose `message` is a throwing getter
+ * must not be able to re-throw from here and brick init(). Falls back to a constant.
+ */
 export function emsg(e: unknown): string {
-  return String((e as { message?: unknown } | undefined)?.message);
+  try {
+    return String((e as { message?: unknown } | undefined)?.message);
+  } catch {
+    return 'unknown error';
+  }
 }
 
 /**
