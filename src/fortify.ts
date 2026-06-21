@@ -17,7 +17,6 @@ import type {
   Sanitizer,
   SanitizeFn,
   ScriptHook,
-  UrlConfigRule,
   UrlPattern,
   ViolationCode,
 } from './types';
@@ -95,10 +94,30 @@ function selectOverride(options: DOMFortifyConfig, url: string): Record<string, 
   const rules = cfg(options, 'URL_CONFIG');
   if (!Array.isArray(rules)) return null;
   for (let i = 0; i < rules.length; i++) {
-    const r = rules[i] as UrlConfigRule | undefined;
-    if (r && urlMatches(r.match, url)) return r as unknown as Record<string, unknown>;
+    const r = rules[i];
+    // Read `match` own-key only, so a polluted Object.prototype.match can't make a rule that lacks
+    // its own match apply to every URL.
+    if (r && typeof r === 'object' && urlMatches(cfg(r, 'match') as UrlPattern | UrlPattern[] | undefined, url)) {
+      return r as Record<string, unknown>;
+    }
   }
   return null;
+}
+
+// Does `raw` carry a `.sanitize` method of its own (or on its own class prototype), as opposed to one
+// merely inherited from Object.prototype? We walk the chain but STOP before Object.prototype, so a
+// polluted Object.prototype.sanitize is never mistaken for a real sanitizer. Class-based sanitizers,
+// whose method lives on their own prototype below Object.prototype, still qualify. Tolerant of a
+// hostile getter on the lookup path, which is treated as "not a sanitizer".
+function looksLikeSanitizer(raw: unknown): boolean {
+  try {
+    for (let o: unknown = raw; o && o !== Object.prototype; o = Object.getPrototypeOf(o)) {
+      if (own(o, 'sanitize')) return typeof (o as { sanitize?: unknown }).sanitize === 'function';
+    }
+  } catch {
+    /* a throwing getter on the chain means we cannot trust it as a sanitizer */
+  }
+  return false;
 }
 
 // Normalize whatever the caller handed us into a sanitizer with a `.sanitize` method, or null.
@@ -106,7 +125,7 @@ function selectOverride(options: DOMFortifyConfig, url: string): Record<string, 
 // `.sanitize` FIRST - otherwise we'd wrap the factory and call the wrong thing. A bare function (e.g. a
 // Sanitizer-API adapter) has no `.sanitize` and falls through to the function case.
 function resolveSanitizer(raw: unknown): Sanitizer | null {
-  if (raw && typeof (raw as Sanitizer).sanitize === 'function') return raw as Sanitizer;
+  if (raw && looksLikeSanitizer(raw)) return raw as Sanitizer;
   if (typeof raw === 'function') return { sanitize: raw as SanitizeFn };
   return null;
 }
@@ -230,113 +249,120 @@ export function init(options: DOMFortifyConfig = {}): Readonly<DOMFortifyStatus>
     return cachedStatus;
   };
 
-  const url = loc && typeof loc.href !== 'undefined' ? String(loc.href) : '';
-
-  // EXCLUDE: on a match, stay completely out of the way - no policy, no meta. We do NOT install a
-  // passthrough (that would be a silent XSS hole); under globally delivered enforcement, excluded
-  // pages are the developer's responsibility. Reported via status.excluded.
-  if (urlMatches(cfg(options, 'EXCLUDE') as UrlPattern | UrlPattern[] | undefined, url)) {
-    status.excluded = true;
-    return done('URL matched EXCLUDE; DOMFortify is intentionally inactive on this page.', 'excluded-by-url');
-  }
-
-  if (!TT || typeof TT.createPolicy !== 'function') {
-    return done('Trusted Types not supported; library is inert. Sinks are NOT routed.', 'tt-unsupported');
-  }
-
-  // Resolve config once. `eff(key)` reads the matching URL_CONFIG rule's own key when present, else the
-  // base config - both own-key only. Nothing is re-read later, so runtime clobbering can't retarget
-  // the policy after this point either.
-  const override = selectOverride(options, url);
-  const eff = (key: string): unknown => (override && own(override, key) ? override[key] : cfg(options, key));
-
-  // INJECT_META (opt-in, best-effort - see injectMeta and the README).
-  if (cfg(options, 'INJECT_META') === true) {
-    const directive = metaDirective(cfg(options, 'META_DIRECTIVE'), typeof eff('SANITIZER') === 'function');
-    status.metaInjected = injectMeta(directive);
-    report('meta-injection-attempted', { directive, written: status.metaInjected });
-  }
-
-  status.enforcementActive = enforcementActive();
-
-  // Sanitizer: explicit SANITIZER (possibly per-URL), else window.DOMPurify. Config is forwarded
-  // verbatim as the second argument, copied to drop pollution-prone keys.
-  let rawSan: unknown = eff('SANITIZER');
-  if (rawSan === undefined) rawSan = (root as unknown as { DOMPurify?: unknown }).DOMPurify;
-  const sanitizer = resolveSanitizer(rawSan);
-  const rawCfg = eff('SANITIZER_CONFIG');
-  const sanitizeConfig =
-    rawCfg && typeof rawCfg === 'object' ? shallowCopy(rawCfg as Record<string, unknown>) : undefined;
-
-  // Sink openers count only if they're own functions, so prototype pollution can never open a sink.
-  const asCand = eff('ALLOW_SCRIPT');
-  const asuCand = eff('ALLOW_SCRIPT_URL');
-  const allowScript = typeof asCand === 'function' ? (asCand as ScriptHook) : null;
-  const allowScriptURL = typeof asuCand === 'function' ? (asuCand as ScriptHook) : null;
-
-  let sanitizerReady = false;
-  if (sanitizer) {
-    const result = smokeTest(sanitizer, sanitizeConfig);
-    sanitizerReady = result.ready;
-    if (!result.ready) report('sanitizer-smoketest-failed', { error: result.error });
-  }
-  status.sanitizerReady = sanitizerReady;
-
-  // createHTML closes over sanitizeConfig; the script hooks refuse unless an own-function hook allows.
-  const policyDef = {
-    createHTML: makeSanitizeHTML(sanitizer, sanitizeConfig, sanitizerReady, report),
-    createScript: makeScriptHook('createScript', allowScript, report),
-    createScriptURL: makeScriptHook('createScriptURL', allowScriptURL, report),
-  };
-
-  // Did someone grab the default slot first? We can't evict them and won't vouch for them.
-  if (TT.defaultPolicy) {
-    return done(
-      'A default Trusted Types policy already exists; DOMFortify did NOT install and cannot vouch for it. ' +
-        'Load DOMFortify first, inline in <head>.',
-      'preexisting-default-policy',
-    );
-  }
-
-  let ours: unknown;
   try {
-    ours = TT.createPolicy('default', policyDef);
+    const url = loc && typeof loc.href !== 'undefined' ? String(loc.href) : '';
+
+    // EXCLUDE: on a match, stay completely out of the way - no policy, no meta. We do NOT install a
+    // passthrough (that would be a silent XSS hole); under globally delivered enforcement, excluded
+    // pages are the developer's responsibility. Reported via status.excluded.
+    if (urlMatches(cfg(options, 'EXCLUDE') as UrlPattern | UrlPattern[] | undefined, url)) {
+      status.excluded = true;
+      return done('URL matched EXCLUDE; DOMFortify is intentionally inactive on this page.', 'excluded-by-url');
+    }
+
+    if (!TT || typeof TT.createPolicy !== 'function') {
+      return done('Trusted Types not supported; library is inert. Sinks are NOT routed.', 'tt-unsupported');
+    }
+
+    // Resolve config once. `eff(key)` reads the matching URL_CONFIG rule's own key when present, else the
+    // base config - both own-key only. Nothing is re-read later, so runtime clobbering can't retarget
+    // the policy after this point either.
+    const override = selectOverride(options, url);
+    const eff = (key: string): unknown => (override && own(override, key) ? override[key] : cfg(options, key));
+
+    // INJECT_META (opt-in, best-effort - see injectMeta and the README).
+    if (cfg(options, 'INJECT_META') === true) {
+      const directive = metaDirective(cfg(options, 'META_DIRECTIVE'), typeof eff('SANITIZER') === 'function');
+      status.metaInjected = injectMeta(directive);
+      report('meta-injection-attempted', { directive, written: status.metaInjected });
+    }
+
+    status.enforcementActive = enforcementActive();
+
+    // Sanitizer: explicit SANITIZER (possibly per-URL), else window.DOMPurify. Config is forwarded
+    // verbatim as the second argument, copied to drop pollution-prone keys.
+    let rawSan: unknown = eff('SANITIZER');
+    if (rawSan === undefined) rawSan = (root as unknown as { DOMPurify?: unknown }).DOMPurify;
+    const sanitizer = resolveSanitizer(rawSan);
+    const rawCfg = eff('SANITIZER_CONFIG');
+    const sanitizeConfig =
+      rawCfg && typeof rawCfg === 'object' ? shallowCopy(rawCfg as Record<string, unknown>) : undefined;
+
+    // Sink openers count only if they're own functions, so prototype pollution can never open a sink.
+    const asCand = eff('ALLOW_SCRIPT');
+    const asuCand = eff('ALLOW_SCRIPT_URL');
+    const allowScript = typeof asCand === 'function' ? (asCand as ScriptHook) : null;
+    const allowScriptURL = typeof asuCand === 'function' ? (asuCand as ScriptHook) : null;
+
+    let sanitizerReady = false;
+    if (sanitizer) {
+      const result = smokeTest(sanitizer, sanitizeConfig);
+      sanitizerReady = result.ready;
+      if (!result.ready) report('sanitizer-smoketest-failed', { error: result.error });
+    }
+    status.sanitizerReady = sanitizerReady;
+
+    // createHTML closes over sanitizeConfig; the script hooks refuse unless an own-function hook allows.
+    const policyDef = {
+      createHTML: makeSanitizeHTML(sanitizer, sanitizeConfig, sanitizerReady, report),
+      createScript: makeScriptHook('createScript', allowScript, report),
+      createScriptURL: makeScriptHook('createScriptURL', allowScriptURL, report),
+    };
+
+    // Did someone grab the default slot first? We can't evict them and won't vouch for them.
+    if (TT.defaultPolicy) {
+      return done(
+        'A default Trusted Types policy already exists; DOMFortify did NOT install and cannot vouch for it. ' +
+          'Load DOMFortify first, inline in <head>.',
+        'preexisting-default-policy',
+      );
+    }
+
+    let ours: unknown;
+    try {
+      ours = TT.createPolicy('default', policyDef);
+    } catch (e) {
+      // Throws when a default policy exists and 'allow-duplicates' is off - someone won the race.
+      return done(
+        `createPolicy("default") threw (${emsg(e)}); another default policy won the race.`,
+        'default-policy-lost',
+      );
+    }
+
+    // With 'allow-duplicates' the create can succeed yet not be the active default.
+    if (TT.defaultPolicy && TT.defaultPolicy !== ours) {
+      return done(
+        'Our policy was created but is not the active default (allow-duplicates race lost). ' +
+          'Remove "allow-duplicates" from the trusted-types directive.',
+        'default-policy-not-active',
+      );
+    }
+
+    status.defaultPolicyOwned = true;
+
+    if (!status.enforcementActive) {
+      return done(
+        'Default policy installed and slot locked, but TT enforcement is NOT active - sinks are not routed. ' +
+          'Deliver require-trusted-types-for (header preferred).',
+        'enforcement-inactive',
+      );
+    }
+    if (!sanitizerReady) {
+      return done(
+        'Enforcement active and slot locked, but the sanitizer is unavailable - HTML sinks will THROW ' +
+          '(failing closed). Bundle DOMPurify and load it before DOMFortify.',
+        'failing-closed',
+      );
+    }
+    return done(
+      `Active: HTML sinks sanitized, script sinks ${allowScript || allowScriptURL ? 'partly allowed by hooks' : 'refused'}.`,
+    );
   } catch (e) {
-    // Throws when a default policy exists and 'allow-duplicates' is off - someone won the race.
-    return done(
-      `createPolicy("default") threw (${emsg(e)}); another default policy won the race.`,
-      'default-policy-lost',
-    );
+    // Defense in depth: init() must never throw or leave the library bricked with a null status. A
+    // hostile getter or exotic environment that slips past the guards above fails closed here, with a
+    // real status object still cached and returned.
+    return done(`init() hit an unexpected error (${emsg(e)}); failing closed.`, 'failing-closed');
   }
-
-  // With 'allow-duplicates' the create can succeed yet not be the active default.
-  if (TT.defaultPolicy && TT.defaultPolicy !== ours) {
-    return done(
-      'Our policy was created but is not the active default (allow-duplicates race lost). ' +
-        'Remove "allow-duplicates" from the trusted-types directive.',
-      'default-policy-not-active',
-    );
-  }
-
-  status.defaultPolicyOwned = true;
-
-  if (!status.enforcementActive) {
-    return done(
-      'Default policy installed and slot locked, but TT enforcement is NOT active - sinks are not routed. ' +
-        'Deliver require-trusted-types-for (header preferred).',
-      'enforcement-inactive',
-    );
-  }
-  if (!sanitizerReady) {
-    return done(
-      'Enforcement active and slot locked, but the sanitizer is unavailable - HTML sinks will THROW ' +
-        '(failing closed). Bundle DOMPurify and load it before DOMFortify.',
-      'failing-closed',
-    );
-  }
-  return done(
-    `Active: HTML sinks sanitized, script sinks ${allowScript || allowScriptURL ? 'partly allowed by hooks' : 'refused'}.`,
-  );
 }
 
 export function status(): Readonly<DOMFortifyStatus> | null {
