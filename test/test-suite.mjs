@@ -208,6 +208,31 @@ QUnit.module('prototype-pollution resistance', (hooks) => {
     assert.true(status.defaultPolicyOwned, 'default slot still claimed, so nothing else can grab it');
   });
 
+  QUnit.test(
+    'a sanitizer throwing a self-referential hostile error still fails closed, never bricks',
+    async (assert) => {
+      // The error's `message` is a getter that re-throws the error itself, so a naive emsg() would
+      // throw every time it is read - defeating both the inner and outer catch and bricking init.
+      const selfRef = {};
+      Object.defineProperty(selfRef, 'message', {
+        get() {
+          throw selfRef;
+        },
+      });
+      const dp = {
+        sanitize() {
+          throw selfRef;
+        },
+      };
+      const { mod, status } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: dp });
+      assert.true(status != null, 'init returned a status (did not throw or brick)');
+      assert.true(mod.status() != null, 'status() is not null');
+      assert.false(status.sanitizerReady, 'sanitizer not ready');
+      assert.false(status.protected, 'fails closed');
+      assert.true(status.defaultPolicyOwned, 'default slot still claimed');
+    },
+  );
+
   QUnit.test('polluted Object.prototype.match cannot apply a rule that lacks its own match', async (assert) => {
     Object.prototype.match = '/'; // would match every URL if read off the prototype
     const dp = { sanitize: (_s, c) => JSON.stringify(c) };

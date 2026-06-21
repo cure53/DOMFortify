@@ -16,9 +16,18 @@
     function clip(s) {
         return String(s).slice(0, 80);
     }
-    /** Best-effort error message, tolerant of non-Error throws. */
+    /**
+     * Best-effort error message, tolerant of non-Error throws. Must never throw itself: it runs inside
+     * init()'s catch and several sink catches, so a hostile error whose `message` is a throwing getter
+     * must not be able to re-throw from here and brick init(). Falls back to a constant.
+     */
     function emsg(e) {
-        return String(e?.message);
+        try {
+            return String(e?.message);
+        }
+        catch {
+            return 'unknown error';
+        }
     }
     /**
      * Copy an object's own keys, dropping the three that could pollute a prototype. Deliberately not a
