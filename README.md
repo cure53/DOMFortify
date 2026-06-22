@@ -1,6 +1,6 @@
 # DOMFortify
 
-[![npm](https://img.shields.io/npm/v/domfortify.svg)](https://www.npmjs.com/package/domfortify) [![License](https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg)](https://github.com/cure53/DOMFortify/blob/main/LICENSE) ![npm package minimized gzipped size](https://img.shields.io/bundlejs/size/domfortify?color=%233C1&label=gzip) [![Build & Test](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml) [![CodeQL](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml) 
+[![npm](https://img.shields.io/npm/v/domfortify.svg)](https://www.npmjs.com/package/domfortify) [![License](https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg)](https://github.com/cure53/DOMFortify/blob/main/LICENSE) ![npm package minimized gzipped size](https://img.shields.io/bundlejs/size/domfortify?color=%233C1&label=gzip) [![Build & Test](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml) [![CodeQL](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml)
 
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13287/badge)](https://www.bestpractices.dev/projects/13287) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge)](https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify) [![Socket Badge](https://badge.socket.dev/npm/package/domfortify/latest)](https://badge.socket.dev/npm/package/domfortify/latest)
 
@@ -14,6 +14,12 @@ XSS.
 
 **Ship the policy, and the browser routes every HTML sink through DOMPurify (or any sanitizer you give
 it) on its way into the DOM.**
+
+New here? The [wiki](https://github.com/cure53/DOMFortify/wiki) has the deeper docs:
+[Installation and Usage](https://github.com/cure53/DOMFortify/wiki/Installation-and-Usage),
+[How It Works](https://github.com/cure53/DOMFortify/wiki/How-It-Works) with data-flow diagrams, the
+[Security Goals and Threat Model](https://github.com/cure53/DOMFortify/wiki/Security-Goals-and-Threat-Model),
+and [Risks and Footguns](https://github.com/cure53/DOMFortify/wiki/Risks-and-Footguns).
 
 ## Is there a demo?
 
@@ -29,9 +35,11 @@ HTML goes through [DOMPurify](https://github.com/cure53/DOMPurify) (or any sanit
 sinks like `eval` and `script.src` are refused outright, because there is no safe way to sanitize
 executable code.
 
-It does two jobs and no more: own the `default` policy, and route sinks. Whether enforcement is even on
-is a CSP's job, not the library's - so DOMFortify reports honestly, through `status()`, whether the page
-is actually protected.
+It does two jobs and no more: own the `default` policy, and route sinks. Whether enforcement is on comes
+from a CSP - a response header, a parse-time `<meta>`, or DOMFortify's opt-in `INJECT_META` - and either
+way DOMFortify reports honestly, through `status()`, whether the page is actually protected. For the full
+mental model with data-flow diagrams, see
+[How It Works](https://github.com/cure53/DOMFortify/wiki/How-It-Works) in the wiki.
 
 ## Quick start (CDN)
 
@@ -70,8 +78,8 @@ could reach. Pin both with SRI so a bad CDN day fails closed instead of open:
   crossorigin="anonymous"
 ></script>
 <script
-  src="https://cdn.jsdelivr.net/npm/domfortify@0.1.0/dist/fortify.min.js"
-  integrity="sha384-K9huyIl4RBuiqJ7yfQIjf5T8Zz+BbxYMTXgfC8rNhXZNdGRtzCUb5AtDQKI5G6IE"
+  src="https://cdn.jsdelivr.net/npm/domfortify@0.2.0/dist/fortify.min.js"
+  integrity="sha384-JXVhAk88k789tRT7GwtEyU9dJuJlu/Esv4Beq6FOrAXZYN59ykiQExs+vCBNNeYs"
   crossorigin="anonymous"
 ></script>
 ```
@@ -248,9 +256,11 @@ passed its smoke test. `reason` explains the current state in one line. Demo: [s
 
 ## What it won't do
 
-It's a retrofit, not magic. Know the edges:
+It's a retrofit, not magic. Know the edges (the
+[Risks and Footguns](https://github.com/cure53/DOMFortify/wiki/Risks-and-Footguns) wiki page goes deeper):
 
-- **It needs the CSP.** No enforcement, no protection - and it'll tell you so via `status()`.
+- **Enforcement has to be on.** No enforcement, no protection, and it'll tell you so via `status()`. Turn
+  it on with a header, a parse-time `<meta>`, or `INJECT_META` (next bullet). A header is sturdiest.
 - **`INJECT_META` is best-effort.** A script-inserted `<meta>` CSP is ignored unless the parser inserts
   it during the initial parse. Don't rely on it where a header or hand-placed `<meta>` is an option;
   check `status()` to see whether enforcement actually took.
@@ -268,6 +278,10 @@ It's a retrofit, not magic. Know the edges:
   [Relationship to the platform](#relationship-to-the-platform).
 
 ## Security
+
+For what DOMFortify defends, what it assumes, and what stays out of scope, see the
+[Security Goals and Threat Model](https://github.com/cure53/DOMFortify/wiki/Security-Goals-and-Threat-Model)
+in the wiki.
 
 Found a hole? Please report it privately - see [SECURITY.md](SECURITY.md). Don't open a public issue.
 
