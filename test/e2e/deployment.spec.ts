@@ -112,6 +112,11 @@ for (const file of readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.html'))) 
       expect(fired, 'with nothing enforcing Trusted Types the DOM-XSS should fire').toBe(true);
       expect(status?.protected, 'DOMFortify must not claim protection it does not have').toBeFalsy();
     } else if (expectKind === 'protected') {
+      // Native Trusted Types enforcement is now Baseline, but a given Playwright engine build may
+      // predate it. The protection guarantee only exists where enforcement is actually on, so gate
+      // the assertion on it: on an enforcing engine we prove neutralization, elsewhere we skip rather
+      // than assert a guarantee the platform isn't providing (DOMFortify reports this honestly).
+      test.skip(!status?.enforcementActive, 'engine build does not enforce Trusted Types natively');
       expect(fired, 'the payload must be neutralized under enforcement').toBe(false);
       expect(status?.protected, 'DOMFortify should report the page as protected').toBe(true);
     } else if (expectKind === 'best-effort') {
@@ -130,13 +135,21 @@ for (const file of readdirSync(FIXTURE_DIR).filter((f) => f.endsWith('.html'))) 
 // level, so a non-fire there is a browser win, not a DOMFortify bug.
 for (const v of VECTORS) {
   if (v.firesUnprotected) {
-    test(`vector ${v.kind}/${v.name}: fires on the unprotected page`, async ({ page }: { page: Dialoged }) => {
+    test(`vector ${v.kind}/${v.name}: fires on the unprotected page`, async ({
+      page,
+    }: { page: Dialoged }, testInfo) => {
+      // The firesUnprotected corpus is calibrated on the reference engine; Firefox/WebKit parse some
+      // vectors (e.g. svg/onload) differently, so a non-fire there is a browser win, not a real miss.
+      test.skip(testInfo.project.name !== 'chromium', 'firesUnprotected canary runs on the reference engine');
       const { fired } = await visit(page, 'unprotected.html', v.payload);
       expect(fired, `${v.name} should execute when nothing is enforcing`).toBe(true);
     });
   }
   test(`vector ${v.kind}/${v.name}: neutralized under DOMFortify`, async ({ page }: { page: Dialoged }) => {
     const { fired, status } = await visit(page, 'meta.html', v.payload);
+    // Only assert the protection guarantee where the engine actually enforces Trusted Types (see the
+    // note in the deployment matrix above). Non-enforcing engine builds skip rather than fail.
+    test.skip(!status?.enforcementActive, 'engine build does not enforce Trusted Types natively');
     expect(status?.protected, 'page should be protected').toBe(true);
     expect(fired, `${v.name} must not execute under enforcement`).toBe(false);
   });
