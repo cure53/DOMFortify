@@ -4,12 +4,71 @@
 # supply-chain surface of its own. Any advisories OSV-Scanner reports come from
 # development / test / CI tooling in the lockfile, never from distributed code.
 #
-# There are no suppressions yet. If a dev-only advisory ever needs ignoring, add
-# an [[IgnoredVulns]] entry with a VERIFIED GHSA id, a reason, and a one-year
-# ignoreUntil horizon so it is re-evaluated rather than suppressed forever.
+# The suppressions below are all for deliberately-vulnerable legacy libraries
+# pulled in ONLY as e2e test fixtures (test/fixtures/with-angularjs.html and
+# test/fixtures/with-jquery.html). They are intentionally old: the tests exist
+# to prove DOMFortify backstops their known DOM-XSS sinks, so "upgrade to fix"
+# is not an option - a patched version would no longer exercise the footgun.
+# devDependencies only; never part of the published runtime artifact.
 #
-# Example (commented out):
-# [[IgnoredVulns]]
-# id = "GHSA-xxxx-xxxx-xxxx"
-# ignoreUntil = 2027-06-15
-# reason = "Dev tooling only; not part of the published runtime artifact."
+# Each entry carries a one-year ignoreUntil so it is re-evaluated, not buried.
+
+# --- AngularJS 1.8.3 (EOL, terminal - no fixed 1.x release exists) -----------
+# Fixture: test/fixtures/with-angularjs.html (ng-bind-html without ngSanitize).
+[[IgnoredVulns]]
+id = "GHSA-2qqx-w9hr-q5gx"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+[[IgnoredVulns]]
+id = "GHSA-2vrf-hf26-jrp5"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+[[IgnoredVulns]]
+id = "GHSA-4w4v-5hc9-xrr2"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+[[IgnoredVulns]]
+id = "GHSA-j58c-ww9w-pwp5"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+[[IgnoredVulns]]
+id = "GHSA-m2h2-264f-f486"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+[[IgnoredVulns]]
+id = "GHSA-m9gf-397r-hwpg"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+[[IgnoredVulns]]
+id = "GHSA-mqm9-c95h-x2p6"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+[[IgnoredVulns]]
+id = "GHSA-prc3-vjfx-vhm9"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+[[IgnoredVulns]]
+id = "GHSA-qwqh-hm9m-p5hr"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
+# --- jQuery 3.4.1 (deliberately pre-3.5: CVE-2020-11022 / -11023 mXSS) -------
+# Fixture: test/fixtures/with-jquery.html ($(t).html() reaching innerHTML).
+# Bumping to >= 3.5.0 would patch the very sink the test relies on.
+[[IgnoredVulns]]
+id = "GHSA-gxr4-xjj5-5px2"
+ignoreUntil = 2027-06-22
+reason = "jQuery 3.4.1 pinned pre-3.5 on purpose for the mXSS backstop test; dev-only, not shipped."
+
+[[IgnoredVulns]]
+id = "GHSA-jpcq-cgw6-v4j6"
+ignoreUntil = 2027-06-22
+reason = "jQuery 3.4.1 pinned pre-3.5 on purpose for the mXSS backstop test; dev-only, not shipped."
