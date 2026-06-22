@@ -10,7 +10,7 @@ DOM. You don't touch the code. You don't even need to know where the bug is.
 
 It's for the sites you can't easily fix: sprawling apps and legacy code nobody wants to touch, the
 third-party widget you can't patch, the 2000-plus `innerHTML` sinks written before anyone had heard of
-XSS.
+XSS. Also, lots of ❤️ to the CTF community, who might have a field-day with this one.
 
 **Ship the policy, and the browser routes every HTML sink through DOMPurify (or any sanitizer you give
 it) on its way into the DOM.**
