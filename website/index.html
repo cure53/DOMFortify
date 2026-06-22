@@ -102,13 +102,6 @@
     .banner.ok strong { color: var(--safe); }
     .banner.bad strong { color: var(--danger); }
 
-    .explainer { margin-top: 18px; padding: 24px 26px; border: 1px solid var(--border); border-radius: 18px; background: color-mix(in srgb, var(--panel), transparent 4%); box-shadow: var(--shadow); }
-    .explainer h2 { margin: 0 0 10px; font-size: 18px; letter-spacing: -.01em; }
-    .explainer p { margin: 0 0 12px; }
-    .explainer p:last-child { margin-bottom: 0; }
-    .explainer code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: var(--panel-2); padding: 1px 5px; border-radius: 6px; }
-    .explainer .punch { font-weight: 700; color: var(--text); }
-
     .toolbar, .status-grid, .workspace, .preview-card { margin-top: 18px; }
     .toolbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
     .field { display: grid; gap: 6px; }
@@ -160,9 +153,8 @@
     @media (max-width: 700px) {
       body { font-size: 14px; }
       .shell { width: calc(100% - 24px); padding: 12px 0 18px; }
-      header, .toolbar, .stat, .explainer { border-radius: 12px; }
+      header, .toolbar, .stat { border-radius: 12px; }
       header { padding: 18px; gap: 12px; }
-      .explainer { padding: 18px; }
       .intro { font-size: 15px; }
       .badges img { height: 18px; }
       .toolbar { grid-template-columns: 1fr; gap: 10px; padding: 12px; }
@@ -202,24 +194,6 @@
     <section class="banner" id="banner">
       <strong id="bannerText">checking protection...</strong>
       <span class="meta" id="bannerReason"></span>
-    </section>
-
-    <section class="explainer">
-      <h2>What this is</h2>
-      <p>
-        Old pages carry DOM XSS in code nobody will rewrite. DOMFortify turns on Trusted Types with a CSP and
-        registers a single <code>default</code> policy for the whole realm: HTML sinks (<code>innerHTML</code>,
-        <code>insertAdjacentHTML</code>, <code>document.write</code>) are routed through a sanitizer; script sinks
-        (<code>eval</code>, <code>javascript:</code> URLs, <code>script.src</code>) are <em>refused</em> outright -
-        code has no safe subset. No application code changes. Trusted Types is Baseline across current browsers as of 2026.
-      </p>
-      <p style="color:var(--muted);font-size:14px;margin-top:12px">
-        Honest edges, all visible below: enforcement comes from the CSP, not the library; with no sanitizer it
-        <strong>fails closed</strong> (sinks throw, never leak); the first script to claim <code>default</code> wins,
-        so load <code>fortify.js</code> first; it guards only the <strong>realm</strong> it loads in (see the child
-        frame); and it covers only Trusted Types sinks - inline handlers, <code>style</code>, and direct URL properties
-        stay open and need a <code>script-src</code> without <code>'unsafe-inline'</code>.
-      </p>
     </section>
 
     <section class="status-grid two" aria-label="The vulnerability and the fix">
