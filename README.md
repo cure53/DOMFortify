@@ -26,6 +26,10 @@ and [Risks and Footguns](https://github.com/cure53/DOMFortify/wiki/Risks-and-Foo
 Of course. [Play with DOMFortify](https://cure53.de/fortify) - throw payloads at a deliberately broken
 page and watch the browser neutralize them before they reach the DOM.
 
+There's also a [collection of standalone demos](demos/) you can read or serve locally, one per feature,
+including [URL scoping with EXCLUDE / URL_CONFIG](demos/url-config-demo.html) and the
+[INCLUDE allow-list](demos/include-demo.html).
+
 ## How it works
 
 Trusted Types lets a page register one `default` policy that the browser consults for every dangerous
@@ -197,6 +201,12 @@ Demo: [allow one script URL](demos/allow-script-url-demo.html).
 // It does NOT install a passthrough (that would be a silent XSS hole). Matched against location.href:
 // a string is a substring match, a RegExp is test()ed, and either may be given as an array.
 window.DOMFortifyConfig = { EXCLUDE: ['/admin/', /\/internal\b/] };
+
+// INCLUDE: the allow-list complement - activate ONLY on matching URLs, inactive everywhere else.
+// EXCLUDE still wins for a URL that matches both. Same matching rules as EXCLUDE. Best paired with
+// page-scoped enforcement (e.g. INJECT_META): under a global enforcement header, non-included pages
+// have enforcement on but no default policy, so their sinks fail closed.
+window.DOMFortifyConfig = { INCLUDE: ['/admin/', '/account/'], INJECT_META: true };
 
 // URL_CONFIG: per-URL overrides; the FIRST matching rule's own keys override the base config. Handy
 // for a stricter (or looser) sanitizer config, sanitizer, or script hook on specific routes.

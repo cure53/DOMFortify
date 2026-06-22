@@ -25,7 +25,7 @@ interface UrlConfigRule {
     ALLOW_SCRIPT_URL?: ScriptHook;
 }
 /** Notable events emitted to `ON_VIOLATION`. */
-type ViolationCode = 'tt-unsupported' | 'sanitizer-smoketest-failed' | 'sanitizer-unavailable' | 'sanitize-threw' | 'script-hook-threw' | 'script-sink-allowed' | 'script-sink-refused' | 'preexisting-default-policy' | 'default-policy-lost' | 'default-policy-not-active' | 'enforcement-inactive' | 'excluded-by-url' | 'meta-injection-attempted' | 'failing-closed';
+type ViolationCode = 'tt-unsupported' | 'sanitizer-smoketest-failed' | 'sanitizer-unavailable' | 'sanitize-threw' | 'script-hook-threw' | 'script-sink-allowed' | 'script-sink-refused' | 'preexisting-default-policy' | 'default-policy-lost' | 'default-policy-not-active' | 'enforcement-inactive' | 'excluded-by-url' | 'outside-include-scope' | 'meta-injection-attempted' | 'failing-closed';
 interface DOMFortifyConfig {
     /** Object with `.sanitize`, or a bare function. Defaults to `window.DOMPurify`. */
     SANITIZER?: Sanitizer | SanitizeFn;
@@ -42,6 +42,15 @@ interface DOMFortifyConfig {
      * meta. Matched against `location.href` (string = substring, RegExp = test).
      */
     EXCLUDE?: UrlPattern | UrlPattern[];
+    /**
+     * Allow-list complement of `EXCLUDE`. When set, DOMFortify activates ONLY on URLs that match and
+     * stays completely inactive (no policy, no meta) everywhere else - useful for scoping a rollout to
+     * specific routes. `EXCLUDE` still wins for a URL that matches both. Matched against `location.href`
+     * (string = substring, RegExp = test). Best paired with page-scoped enforcement (e.g. INJECT_META):
+     * under a globally delivered enforcement header, non-included pages have enforcement on but no
+     * default policy, so their sinks fail closed.
+     */
+    INCLUDE?: UrlPattern | UrlPattern[];
     /** Per-URL configuration overrides; the first matching rule's keys override the base config. */
     URL_CONFIG?: UrlConfigRule[];
     /**
@@ -64,7 +73,7 @@ interface DOMFortifyStatus {
     defaultPolicyOwned: boolean;
     /** Whether the sanitizer passed its smoke test. */
     sanitizerReady: boolean;
-    /** Whether the current URL matched `EXCLUDE` (DOMFortify intentionally inactive). */
+    /** Whether the URL is out of scope (matched `EXCLUDE`, or fell outside `INCLUDE`); inactive here. */
     excluded: boolean;
     /** Whether a CSP `<meta>` injection was attempted via document.write this load. */
     metaInjected: boolean;

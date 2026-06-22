@@ -296,6 +296,14 @@ function init(options = {}) {
             status.excluded = true;
             return done('URL matched EXCLUDE; DOMFortify is intentionally inactive on this page.', 'excluded-by-url');
         }
+        // INCLUDE: the allow-list complement of EXCLUDE. When set, activate ONLY on matching URLs and stay
+        // inactive (no policy, no meta) elsewhere. EXCLUDE is checked first, so it wins for URLs matching
+        // both. Like EXCLUDE, this only scopes activation safely when enforcement is page-scoped too.
+        const include = cfg(options, 'INCLUDE');
+        if (include != null && !urlMatches(include, url)) {
+            status.excluded = true;
+            return done('URL is outside INCLUDE scope; DOMFortify is intentionally inactive on this page.', 'outside-include-scope');
+        }
         if (!TT || typeof TT.createPolicy !== 'function') {
             return done('Trusted Types not supported; library is inert. Sinks are NOT routed.', 'tt-unsupported');
         }
