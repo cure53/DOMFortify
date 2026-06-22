@@ -22,20 +22,26 @@
   <script>
     (function () {
       var params = new URLSearchParams(location.search);
-      var requested = params.get('backend') === 'sanitizer' ? 'sanitizer' : 'dompurify';
+      var requested = params.get('backend');
+      if (requested !== 'sanitizer' && requested !== 'none') requested = 'dompurify';
       var canSanitizer = typeof Element.prototype.setHTML === 'function';
       var useSanitizer = requested === 'sanitizer' && canSanitizer;
 
-      // The library accepts a bare function(string, cfg) -> string as SANITIZER, so the Sanitizer-API
-      // backend is a one-liner. setHTML() is safe-by-default and not a TrustedHTML sink. Leaving SANITIZER
-      // undefined makes the library fall back to window.DOMPurify.
-      var sanitizer = useSanitizer
-        ? function (s) { var d = document.createElement('div'); d.setHTML(s); return d.innerHTML; }
-        : undefined;
+      // Three backends, all real:
+      //   dompurify: leave SANITIZER undefined, so the library falls back to window.DOMPurify.
+      //   sanitizer: a bare function(string) -> string driving the native Sanitizer API (setHTML),
+      //              which is safe-by-default and not a TrustedHTML sink.
+      //   none:      SANITIZER: null. The library only falls back to window.DOMPurify when SANITIZER is
+      //              undefined, so an explicit null leaves it with no sanitizer and it fails closed -
+      //              the honest "no sanitizer" case (sinks throw, status reports NOT PROTECTED).
+      var sanitizer;
+      if (useSanitizer) sanitizer = function (s) { var d = document.createElement('div'); d.setHTML(s); return d.innerHTML; };
+      else if (requested === 'none') sanitizer = null;
+      else sanitizer = undefined;
 
       window.__ttEvents = [];
       window.__backendRequested = requested;
-      window.__backendActual = useSanitizer ? 'Sanitizer API' : 'DOMPurify';
+      window.__backendActual = requested === 'none' ? 'none (fail-closed)' : (useSanitizer ? 'Sanitizer API' : 'DOMPurify');
       window.__sanitizerUnsupported = (requested === 'sanitizer' && !canSanitizer);
 
       window.DOMFortifyConfig = {
@@ -160,7 +166,7 @@
   <main class="shell">
     <header>
       <div class="eyebrow">
-        <span class="pill">DOMFortify 0.2 "Rampart"</span>
+        <span class="pill" id="dfVersionPill">DOMFortify: loading...</span>
         <span class="pill">library: fortify.js</span>
         <span class="pill" id="versionPill">DOMPurify: loading...</span>
         <span class="pill" id="backendPill">backend: -</span>
@@ -253,6 +259,7 @@ function renderInnerHTML(value) {
         <select id="backend">
           <option value="dompurify">DOMPurify</option>
           <option value="sanitizer">Sanitizer API (setHTML)</option>
+          <option value="none">No sanitizer (fail-closed)</option>
         </select>
       </div>
       <div class="field">
@@ -330,7 +337,7 @@ function renderInnerHTML(value) {
     <section class="preview-card" id="source" aria-label="fortify.js source">
       <div class="card-header"><h2>fortify.js - the core idea, condensed</h2><span class="meta">the shape of the library, trimmed for reading; canonical source: <a href="https://github.com/cure53/DOMFortify/blob/main/src/fortify.ts">src/fortify.ts</a></span></div>
       <pre id="sourceCode" style="max-height:620px; margin:0; border-radius:0;">/*!
- * DOMFortify 0.2.0 - bolt Trusted Types onto a legacy page so old DOM-XSS sinks get sanitized
+ * DOMFortify 0.4.0 - bolt Trusted Types onto a legacy page so old DOM-XSS sinks get sanitized
  * without touching the code.
  *
  * It claims the realm's `default` Trusted Types policy. From then on, every innerHTML / outerHTML /
@@ -416,7 +423,7 @@ function renderInnerHTML(value) {
     const report = typeof onv === 'function' ? onv : () =&gt; {};
 
     const status = {
-      version: '0.2.0',
+      version: '0.4.0',
       ttSupported: !!TT,
       enforcementActive: false,
       defaultPolicyOwned: false,
@@ -709,7 +716,8 @@ function renderInnerHTML(value) {
         removedLog.textContent = 'createHTML returned null -> the sink threw (fail-closed):\n' + err.message;
         runInfo.textContent = 'sink:    ' + label + '\noutcome: BLOCKED (' + err.message + ')';
       } else {
-        var removed = diffStrings(dirty.value, landed);
+        var removed = [];
+        try { removed = diffStrings(dirty.value, landed); } catch (e) { removed = []; }
         removedCount.textContent = removed.length;
         removedLog.textContent = removed.length ? removed.join('\n') : 'nothing removed';
         runInfo.textContent = 'sink:    ' + label + '\noutcome: sanitized by the library, then inserted';
@@ -916,6 +924,7 @@ function renderInnerHTML(value) {
     }
     $('fixCode').textContent = fixSnippet();
     $('versionPill').textContent = 'DOMPurify: v' + dpver;
+    $('dfVersionPill').textContent = 'DOMFortify: v' + (st().version || '?');
     $('backendPill').textContent = 'backend: ' + window.__backendActual;
     backendSel.value = window.__backendRequested;
     backendSel.addEventListener('change', function () {
