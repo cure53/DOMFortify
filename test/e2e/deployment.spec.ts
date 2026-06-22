@@ -154,3 +154,22 @@ for (const v of VECTORS) {
     expect(fired, `${v.name} must not execute under enforcement`).toBe(false);
   });
 }
+
+// --- Legacy-library regression: 0.4.0 must not break when heavy libraries are on the page ---------
+// jQuery and AngularJS run internal innerHTML (and AngularJS Function/eval) as they load under
+// enforcement, AFTER DOMFortify has claimed the default policy. The libraries themselves may not fully
+// initialise under Trusted Types - AngularJS needs Function/eval, which DOMFortify refuses by design,
+// and old jQuery's feature-detection can break on sanitized markup. That is inherent to TT enforcement,
+// not a DOMFortify regression, so we do not assert the library's own global. What DOMFortify must
+// guarantee, and what this asserts, is that its HTML-sink protection stays intact while the library's
+// script runs on the page: it stays ready, reports protected, and the payload is neutralized. This
+// reproduces the hosted demo's environment so a real regression is caught in CI before release.
+for (const file of ['with-jquery.html', 'with-angularjs.html']) {
+  test(`legacy library present: ${file} keeps DOMFortify ready and protected`, async ({ page }: { page: Dialoged }) => {
+    const { fired, status } = await visit(page, file, REFERENCE);
+    test.skip(!status?.enforcementActive, 'engine build does not enforce Trusted Types natively');
+    expect(status?.sanitizerReady, 'sanitizer must stay ready with the library present').toBe(true);
+    expect(status?.protected, 'DOMFortify must stay protected with the library present').toBe(true);
+    expect(fired, 'the payload must be neutralized with the library present').toBe(false);
+  });
+}
