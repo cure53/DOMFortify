@@ -374,6 +374,38 @@ QUnit.module('url targeting & meta injection', (hooks) => {
     assert.strictEqual(rules.createHTML('<x>'), '[clean]<x>', 'policy active');
   });
 
+  QUnit.test('INCLUDE activates only on matching URLs', async (assert) => {
+    const dp = { sanitize: (s) => '[clean]' + s };
+    const hit = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/admin/users' } };
+    const onHit = await install(hit, { INCLUDE: ['/admin/'] });
+    assert.false(onHit.status.excluded, 'in scope, not excluded');
+    assert.true(onHit.status.protected, 'protected on an included URL');
+    assert.strictEqual(onHit.rules.createHTML('<x>'), '[clean]<x>', 'policy active in scope');
+
+    const miss = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/home' } };
+    const offHit = await install(miss, { INCLUDE: ['/admin/'] });
+    assert.true(offHit.status.excluded, 'out of scope is reported as excluded');
+    assert.false(offHit.status.protected, 'not protected outside INCLUDE');
+    assert.strictEqual(miss.tt._rules, null, 'no policy claimed outside scope');
+  });
+
+  QUnit.test('EXCLUDE wins over INCLUDE when a URL matches both', async (assert) => {
+    const dp = { sanitize: (s) => '[clean]' + s };
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/admin/secret' } };
+    const { status } = await install(env, { INCLUDE: ['/admin/'], EXCLUDE: ['/secret'] });
+    assert.true(status.excluded, 'excluded');
+    assert.false(status.protected, 'not protected');
+    assert.strictEqual(env.tt._rules, null, 'no policy claimed');
+  });
+
+  QUnit.test('no INCLUDE means active everywhere (minus EXCLUDE)', async (assert) => {
+    const dp = { sanitize: (s) => '[clean]' + s };
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/anywhere' } };
+    const { status } = await install(env, {});
+    assert.false(status.excluded, 'active by default');
+    assert.true(status.protected, 'protected everywhere when INCLUDE is unset');
+  });
+
   QUnit.test('polluted EXCLUDE cannot silently disable the library', async (assert) => {
     Object.prototype.EXCLUDE = '/'; // would match every URL if read off the prototype
     const dp = { sanitize: (s) => '[clean]' + s };
