@@ -101,6 +101,8 @@ function cleanup() {
   delete Object.prototype.ALLOW_SCRIPT;
   delete Object.prototype.EXCLUDE;
   delete Object.prototype.URL_CONFIG;
+  delete Object.prototype.sanitize;
+  delete Object.prototype.match;
 }
 
 // --- sanitizer resolution ------------------------------------------------------------------------
@@ -134,6 +136,19 @@ QUnit.module('sanitizer resolution', (hooks) => {
     assert.strictEqual(rules.createHTML('<x>'), '[san]<x>', 'wrapped function used');
   });
 
+  QUnit.test('a class-based sanitizer (method on its own prototype) is accepted', async (assert) => {
+    // The .sanitize lives on the class prototype (below Object.prototype), not as an own key. It must
+    // still be recognised: the pollution guard only rejects a sanitize reached from Object.prototype.
+    class S {
+      sanitize(s) {
+        return '[class]' + s;
+      }
+    }
+    const { status, rules } = await install({ tt: makeTT(), doc: makeDoc() }, { SANITIZER: new S() });
+    assert.true(status.sanitizerReady, 'class instance accepted as a sanitizer');
+    assert.strictEqual(rules.createHTML('<x>'), '[class]<x>', 'its prototype sanitize is used');
+  });
+
   QUnit.test('sanitizer returning a non-string fails closed', async (assert) => {
     const dp = { sanitize: () => ({ not: 'a string' }) };
     const { status, rules } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: dp });
@@ -165,6 +180,70 @@ QUnit.module('prototype-pollution resistance', (hooks) => {
     const dp = { sanitize: (s) => '[clean]' + s };
     const { rules } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: dp });
     assert.strictEqual(rules.createScript('alert(1)'), null, 'still refused');
+  });
+
+  QUnit.test('polluted Object.prototype.sanitize is not adopted as the sanitizer', async (assert) => {
+    // Identity "sanitize" on the prototype would pass payloads through untouched if adopted. The
+    // global sanitizer is a DOM-clobbered truthy non-sanitizer (e.g. window.DOMPurify -> an element),
+    // which on its own would fail closed; the danger is the prototype method getting mistaken for it.
+    Object.prototype.sanitize = (s) => s;
+    const clobbered = { tagName: 'IMG' }; // truthy, no own .sanitize
+    const { status, rules } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: clobbered });
+    assert.false(status.sanitizerReady, 'prototype sanitize is not a usable sanitizer');
+    assert.strictEqual(rules.createHTML('<img src=x onerror=alert(1)>'), null, 'HTML sink fails closed');
+  });
+
+  QUnit.test('a hostile throwing sanitize getter fails closed, never bricks init', async (assert) => {
+    const evil = {};
+    Object.defineProperty(evil, 'sanitize', {
+      get() {
+        throw new Error('boom');
+      },
+    });
+    const { mod, status } = await install({ tt: makeTT(), doc: makeDoc() }, { SANITIZER: evil });
+    assert.true(status != null, 'init returned a status object (did not throw or brick)');
+    assert.true(mod.status() != null, 'status() is not null after a hostile getter');
+    assert.false(status.sanitizerReady, 'sanitizer not ready');
+    assert.false(status.protected, 'not protected; HTML sinks fail closed');
+    assert.true(status.defaultPolicyOwned, 'default slot still claimed, so nothing else can grab it');
+  });
+
+  QUnit.test(
+    'a sanitizer throwing a self-referential hostile error still fails closed, never bricks',
+    async (assert) => {
+      // The error's `message` is a getter that re-throws the error itself, so a naive emsg() would
+      // throw every time it is read - defeating both the inner and outer catch and bricking init.
+      const selfRef = {};
+      Object.defineProperty(selfRef, 'message', {
+        get() {
+          throw selfRef;
+        },
+      });
+      const dp = {
+        sanitize() {
+          throw selfRef;
+        },
+      };
+      const { mod, status } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: dp });
+      assert.true(status != null, 'init returned a status (did not throw or brick)');
+      assert.true(mod.status() != null, 'status() is not null');
+      assert.false(status.sanitizerReady, 'sanitizer not ready');
+      assert.false(status.protected, 'fails closed');
+      assert.true(status.defaultPolicyOwned, 'default slot still claimed');
+    },
+  );
+
+  QUnit.test('polluted Object.prototype.match cannot apply a rule that lacks its own match', async (assert) => {
+    Object.prototype.match = '/'; // would match every URL if read off the prototype
+    const dp = { sanitize: (_s, c) => JSON.stringify(c) };
+    const env = { tt: makeTT(), doc: makeDoc(), DOMPurify: dp, location: { href: 'https://app.test/home' } };
+    const rule = { SANITIZER_CONFIG: { LOOSENED: true } }; // NO own `match` key
+    const { rules } = await install(env, { SANITIZER_CONFIG: { strict: true }, URL_CONFIG: [rule] });
+    assert.deepEqual(
+      JSON.parse(rules.createHTML('<x>')),
+      { strict: true },
+      'base config used; the match-less rule did not apply',
+    );
   });
 });
 

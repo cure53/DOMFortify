@@ -1,6 +1,6 @@
 {
   "name": "domfortify",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Retrofit Trusted Types onto a legacy page: claim the realm's default policy so old DOM-XSS sinks get sanitized without touching the code.",
   "license": "(MPL-2.0 OR Apache-2.0)",
   "homepage": "https://github.com/cure53/DOMFortify",
