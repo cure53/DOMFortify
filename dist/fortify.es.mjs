@@ -1,4 +1,4 @@
-/*! DOMFortify 0.3.0 | (c) Cure53 and contributors | (MPL-2.0 OR Apache-2.0) */
+/*! DOMFortify 0.4.0 | (c) Cure53 and contributors | (MPL-2.0 OR Apache-2.0) */
 // Cached up front so later prototype pollution or clobbering can't swap hasOwnProperty out.
 const hasOwn = Object.prototype.hasOwnProperty;
 /** True only for an own (non-inherited) property, so a polluted prototype is never consulted. */
@@ -78,7 +78,7 @@ function urlMatches(pattern, url) {
  *  - Fails closed: no sanitizer means sinks throw, never leak.
  *  - Only covers Trusted Types sinks; inline handlers / style / URL props stay open.
  */
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 // Natives captured up front, so later prototype pollution or clobbering can't swap them out.
 const root = typeof globalThis !== 'undefined' ? globalThis : window;
 const doc = typeof document !== 'undefined' ? document : undefined;
@@ -295,6 +295,14 @@ function init(options = {}) {
         if (urlMatches(cfg(options, 'EXCLUDE'), url)) {
             status.excluded = true;
             return done('URL matched EXCLUDE; DOMFortify is intentionally inactive on this page.', 'excluded-by-url');
+        }
+        // INCLUDE: the allow-list complement of EXCLUDE. When set, activate ONLY on matching URLs and stay
+        // inactive (no policy, no meta) elsewhere. EXCLUDE is checked first, so it wins for URLs matching
+        // both. Like EXCLUDE, this only scopes activation safely when enforcement is page-scoped too.
+        const include = cfg(options, 'INCLUDE');
+        if (include != null && !urlMatches(include, url)) {
+            status.excluded = true;
+            return done('URL is outside INCLUDE scope; DOMFortify is intentionally inactive on this page.', 'outside-include-scope');
         }
         if (!TT || typeof TT.createPolicy !== 'function') {
             return done('Trusted Types not supported; library is inert. Sinks are NOT routed.', 'tt-unsupported');

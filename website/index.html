@@ -5,37 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DOMFortify - demo running the real library</title>
 
-  <!-- >>> THE FIX (part 1 of 2): turn Trusted Types enforcement ON. A CSP does this, and it can be a
-       RESPONSE HEADER or this <meta http-equiv> tag when you cannot set headers. Either way the chain is
-       the same: CSP -> Trusted Types -> the sanitizer. A header is only sturdier because it cannot be
-       neutralized by dangling markup injected above it; meta-only still works, as this page shows. -->
-  <meta http-equiv="Content-Security-Policy"
-        content="require-trusted-types-for 'script'; trusted-types default dompurify;">
+  <!-- Mode switch, decided before anything else loads. The "No sanitizer" backend is the UNPROTECTED
+       baseline: it deliberately emits NO Content-Security-Policy and loads NO DOMFortify, so Trusted
+       Types enforcement stays OFF and the vulnerable sinks run raw - the payload actually executes,
+       which is the whole point of that mode. The two protected backends turn enforcement on below. -->
+  <script>
+    (function () {
+      var requested = new URLSearchParams(location.search).get('backend');
+      if (requested !== 'sanitizer' && requested !== 'none') requested = 'dompurify';
+      window.__backendRequested = requested;
+    })();
+  </script>
 
   <!-- The sanitizer. In production: BUNDLE this and pin it with SRI - do not trust a CDN you do
        not control. A blocked/MITMed load then fails the page closed instead of opening it. -->
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 
-  <!-- >>> THE FIX (part 2 of 2): configure, then load the library FIRST so it wins the default
-       policy slot. Everything below this point is just the demo and the deliberately-vulnerable
-       "application". DOMFortify itself is the two tags above plus fortify.js. -->
+  <!-- Sanitizer-backend configuration for the two protected modes. This only takes effect when
+       DOMFortify is loaded (below); in "No sanitizer" mode it is computed but never consumed. -->
   <script>
     (function () {
-      var params = new URLSearchParams(location.search);
-      var requested = params.get('backend') === 'sanitizer' ? 'sanitizer' : 'dompurify';
+      var requested = window.__backendRequested;
       var canSanitizer = typeof Element.prototype.setHTML === 'function';
       var useSanitizer = requested === 'sanitizer' && canSanitizer;
 
-      // The library accepts a bare function(string, cfg) -> string as SANITIZER, so the Sanitizer-API
-      // backend is a one-liner. setHTML() is safe-by-default and not a TrustedHTML sink. Leaving SANITIZER
-      // undefined makes the library fall back to window.DOMPurify.
-      var sanitizer = useSanitizer
-        ? function (s) { var d = document.createElement('div'); d.setHTML(s); return d.innerHTML; }
-        : undefined;
+      // Three backends, all real:
+      //   dompurify: leave SANITIZER undefined, so the library falls back to window.DOMPurify.
+      //   sanitizer: a bare function(string) -> string driving the native Sanitizer API (setHTML),
+      //              which is safe-by-default and not a TrustedHTML sink.
+      //   none:      no CSP and no DOMFortify are emitted for this mode (see the head), so Trusted Types
+      //              enforcement is OFF. SANITIZER is computed as null but never used; the raw sinks run
+      //              unguarded - the honest "no protection" baseline where the payload actually executes.
+      var sanitizer;
+      if (useSanitizer) sanitizer = function (s) { var d = document.createElement('div'); d.setHTML(s); return d.innerHTML; };
+      else if (requested === 'none') sanitizer = null;
+      else sanitizer = undefined;
 
       window.__ttEvents = [];
-      window.__backendRequested = requested;
-      window.__backendActual = useSanitizer ? 'Sanitizer API' : 'DOMPurify';
+      window.__backendActual = requested === 'none' ? 'none (unprotected)' : (useSanitizer ? 'Sanitizer API' : 'DOMPurify');
       window.__sanitizerUnsupported = (requested === 'sanitizer' && !canSanitizer);
 
       window.DOMFortifyConfig = {
@@ -44,14 +51,23 @@
       };
     })();
   </script>
-  <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  <script>
+    // >>> THE FIX: in the protected modes, turn Trusted Types enforcement ON and load the library, in one
+    // pass. Both the CSP <meta> and the fortify <script> are written here, before the meta is parsed, so
+    // the policy is not yet active when this runs (document.write itself is a Trusted Types sink and would
+    // otherwise be blocked). The parser then applies the CSP and loads fortify under it - fortify claims
+    // the realm's default policy and every HTML sink routes through the sanitizer configured above. A
+    // response HEADER is sturdier than <meta> (it cannot be neutralised by markup injected above it), but
+    // meta-only is valid. In "No sanitizer" mode nothing is written: no enforcement, no policy, raw sinks.
+    if (window.__backendRequested !== 'none') {
+      document.write(
+        '<meta http-equiv="Content-Security-Policy" ' +
+          'content="require-trusted-types-for \'script\'; trusted-types default dompurify;">' +
+        '<scr' + 'ipt src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"><\/scr' + 'ipt>'
+      );
+    }
+  </script>
 
-  <!-- Legacy libraries under test, loaded AFTER fortify.js so the default policy is already in place.
-       Static <script src> is parser-inserted (not a Trusted Types sink), so these load fine even though
-       DOMFortify refuses *programmatic* script URLs. Old, deliberately-unsafe versions on purpose. In
-       production you would self-host these and pin them with SRI rather than pulling from a CDN. -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js"></script>
 
   <style>
     :root {
@@ -85,13 +101,6 @@
     .banner strong { font-size: 16px; }
     .banner.ok strong { color: var(--safe); }
     .banner.bad strong { color: var(--danger); }
-
-    .explainer { margin-top: 18px; padding: 24px 26px; border: 1px solid var(--border); border-radius: 18px; background: color-mix(in srgb, var(--panel), transparent 4%); box-shadow: var(--shadow); }
-    .explainer h2 { margin: 0 0 10px; font-size: 18px; letter-spacing: -.01em; }
-    .explainer p { margin: 0 0 12px; }
-    .explainer p:last-child { margin-bottom: 0; }
-    .explainer code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: var(--panel-2); padding: 1px 5px; border-radius: 6px; }
-    .explainer .punch { font-weight: 700; color: var(--text); }
 
     .toolbar, .status-grid, .workspace, .preview-card { margin-top: 18px; }
     .toolbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
@@ -144,9 +153,8 @@
     @media (max-width: 700px) {
       body { font-size: 14px; }
       .shell { width: calc(100% - 24px); padding: 12px 0 18px; }
-      header, .toolbar, .stat, .explainer { border-radius: 12px; }
+      header, .toolbar, .stat { border-radius: 12px; }
       header { padding: 18px; gap: 12px; }
-      .explainer { padding: 18px; }
       .intro { font-size: 15px; }
       .badges img { height: 18px; }
       .toolbar { grid-template-columns: 1fr; gap: 10px; padding: 12px; }
@@ -160,16 +168,16 @@
   <main class="shell">
     <header>
       <div class="eyebrow">
-        <span class="pill">DOMFortify 0.2 "Rampart"</span>
+        <span class="pill" id="dfVersionPill">DOMFortify: loading...</span>
         <span class="pill">library: fortify.js</span>
         <span class="pill" id="versionPill">DOMPurify: loading...</span>
         <span class="pill" id="backendPill">backend: -</span>
       </div>
       <h1>DOMFortify</h1>
       <p class="intro">
-        This page loads <a href="https://github.com/cure53/DOMFortify/blob/main/dist/fortify.js"><code>fortify.js</code></a> the way a real site would: a CSP turns Trusted
-        Types on, the library claims the realm's <code>default</code> policy, and the deliberately-vulnerable code below
-        gets sanitized by the browser - unchanged. Nothing registers a policy by hand; the library does it.
+        This page runs the real <a href="https://github.com/cure53/DOMFortify/blob/main/dist/fortify.js"><code>fortify.js</code></a>
+        the way a site would: a CSP turns Trusted Types on, the library claims the realm's <code>default</code> policy, and the
+        deliberately-vulnerable code below is sanitized by the browser - unchanged.
       </p>
       <div class="badges" aria-label="Project badges">
         <a href="https://www.npmjs.com/package/domfortify"><img src="https://img.shields.io/npm/v/domfortify.svg" alt="npm"></a>
@@ -186,37 +194,6 @@
     <section class="banner" id="banner">
       <strong id="bannerText">checking protection...</strong>
       <span class="meta" id="bannerReason"></span>
-    </section>
-
-    <section class="explainer">
-      <h2>What this is</h2>
-      <p>
-        Old sites carry DOM XSS in code nobody will fix. DOMFortify turns on Trusted Types and registers one
-        <code>default</code> policy: HTML sinks (<code>innerHTML</code>, <code>insertAdjacentHTML</code>,
-        <code>document.write</code>) go through a sanitizer; script sinks (<code>eval</code>, <code>javascript:</code>
-        URLs, <code>script.src</code>) are <em>refused</em> - code has no safe subset to sanitize. No app code changes.
-      </p>
-      <p class="punch">Not secure. Just less broken.</p>
-      <p style="color:var(--muted);font-size:14px;margin-top:12px">
-        It also backstops the usual library footguns - they end at an HTML sink too. Unsafe jQuery <code>.html()</code>?
-        We got you. Forgot the <code>ngSanitize</code> module and reached for <code>$sce.trustAsHtml()</code> to silence
-        the error? We got you - Angular still binds via <code>innerHTML</code>, so the sanitizer runs anyway. (Try the
-        last two sinks.) What it can't catch: anything that never reaches a sink, like AngularJS <code>{{ }}</code>
-        expressions - that's the framework's interpreter, not the DOM.
-      </p>
-      <p style="color:var(--muted);font-size:14px;margin-top:12px">
-        Turning it on: a CSP enables enforcement. A response <strong>header</strong> is best, but a
-        <code>&lt;meta http-equiv&gt;</code> works when you can't set headers - it turns on Trusted Types, which routes
-        every sink through the sanitizer (meta -&gt; Trusted Types -&gt; DOMPurify). A header is just sturdier: a
-        <code>&lt;meta&gt;</code> can be neutralized by markup injected above it. Meta-only is valid - this page runs on it.
-      </p>
-      <p style="color:var(--muted);font-size:14px;margin-top:12px">
-        Honest edges, all visible here: enforcement must be on (the CSP above); no sanitizer means the library
-        <strong>fails closed</strong> - sinks throw rather than leak; the first script to claim <code>default</code>
-        owns it, so load <code>fortify.js</code> first; it guards only the <strong>realm</strong> it loads in (see the
-        child frame); and it covers only Trusted Types sinks - inline handlers, <code>style</code>, and direct URL
-        properties stay open and need a <code>script-src</code> without <code>'unsafe-inline'</code>.
-      </p>
     </section>
 
     <section class="status-grid two" aria-label="The vulnerability and the fix">
@@ -253,6 +230,7 @@ function renderInnerHTML(value) {
         <select id="backend">
           <option value="dompurify">DOMPurify</option>
           <option value="sanitizer">Sanitizer API (setHTML)</option>
+          <option value="none">No sanitizer (fail-closed)</option>
         </select>
       </div>
       <div class="field">
@@ -263,8 +241,6 @@ function renderInnerHTML(value) {
           <option value="documentWrite">document.write(value) [other realm]</option>
           <option value="scriptSrc">script.src = value</option>
           <option value="evalStr">eval(value)</option>
-          <option value="jqHtml">jQuery 3.4.1: $(t).html(value)</option>
-          <option value="ngBindHtml">AngularJS 1.8: ng-bind-html (no ngSanitize)</option>
         </select>
       </div>
       <button class="primary" id="runBtn" type="button">Run the sink</button>
@@ -294,16 +270,11 @@ function renderInnerHTML(value) {
     </section>
 
     <section class="preview-card" aria-label="Protected DOM target">
-      <div class="card-header"><h2>Live DOM (this document - DOMFortify protected)</h2><span class="meta">innerHTML / insertAdjacentHTML / jQuery .html() target</span></div>
+      <div class="card-header"><h2>Live DOM (this document - DOMFortify protected)</h2><span class="meta">innerHTML / insertAdjacentHTML target</span></div>
       <div id="out" class="surface"></div>
-      <p class="note">The real top-level document. Enforcement is on and the library is installed, so every write here goes through the sanitizer first - the whole point. The jQuery test writes here too, since <code>$(t).html()</code> just reaches <code>innerHTML</code>.</p>
+      <p class="note">The real top-level document. Enforcement is on and the library is installed, so every write here goes through the sanitizer first - the whole point.</p>
     </section>
 
-    <section class="preview-card" aria-label="AngularJS target">
-      <div class="card-header"><h2>AngularJS 1.8 - ng-bind-html with ngSanitize forgotten</h2><span class="meta" id="ngMeta">bootstrapped on first run</span></div>
-      <div id="ngHost" class="surface"></div>
-      <p class="note">The classic footgun: bind untrusted HTML with <code>ng-bind-html</code>, forget <code>ngSanitize</code>, wrap it in <code>$sce.trustAsHtml()</code> to silence the error - now it's unsanitized. Angular still binds via <code>innerHTML</code>, so DOMFortify catches it at the sink. (Expression injection like <code>{{ }}</code> is a different beast - Angular evaluates that itself, so it's out of scope.)</p>
-    </section>
 
     <section class="preview-card" aria-label="document.write target">
       <div class="card-header"><h2>Child frame - a separate realm, DOMFortify installed into it too</h2><span class="meta" id="wfMeta">probed on first write</span></div>
@@ -327,252 +298,6 @@ function renderInnerHTML(value) {
       <div class="stat" style="grid-column: 1 / -1;"><span class="label">DOMFortify events (the onViolation log - your report-only on-ramp)</span><pre id="eventLog">no events yet</pre></div>
     </section>
 
-    <section class="preview-card" id="source" aria-label="fortify.js source">
-      <div class="card-header"><h2>fortify.js - the core idea, condensed</h2><span class="meta">the shape of the library, trimmed for reading; canonical source: <a href="https://github.com/cure53/DOMFortify/blob/main/src/fortify.ts">src/fortify.ts</a></span></div>
-      <pre id="sourceCode" style="max-height:620px; margin:0; border-radius:0;">/*!
- * DOMFortify 0.2.0 - bolt Trusted Types onto a legacy page so old DOM-XSS sinks get sanitized
- * without touching the code.
- *
- * It claims the realm's `default` Trusted Types policy. From then on, every innerHTML / outerHTML /
- * insertAdjacentHTML / document.write the browser handles is run through a sanitizer first. The script
- * sinks (eval, javascript: URLs, script.src) are simply refused - there is no safe version of running
- * code, so we don't pretend there is.
- *
- * Worth knowing before you ship:
- *
- *  - It doesn't switch enforcement on; a CSP does. A response header is best, but a &lt;meta&gt; works too:
- *      require-trusted-types-for 'script'; trusted-types default dompurify;
- *    With no enforcement this file is inert and says so (status.enforcementActive).
- *
- *  - Load it FIRST, inline in &lt;head&gt;. The default policy is winner-takes-all: whoever registers it first
- *    owns every DOM write. If attacker code beats you to it, you're worse off than not running at all -
- *    so let nothing run before this. (And don't add 'allow-duplicates'; it drops the lock.)
- *
- *  - It fails closed. If the sanitizer is missing or throws, sinks throw and the page may break. That's
- *    the safe direction - so bundle the sanitizer and pin it with SRI instead of trusting a CDN.
- *
- *  - It only covers Trusted Types sinks. Inline handlers (onclick=...), style sinks, and plain URL
- *    properties (a.href = ...) aren't TT sinks and stay open; close the handlers with a script-src that
- *    drops 'unsafe-inline'.
- *
- * Config - set window.DOMFortifyConfig before this script, or call DOMFortify.init(...):
- *   SANITIZER         object with .sanitize(str, cfg) =&gt; str, or just a function(str, cfg) =&gt; str.
- *                     Defaults to window.DOMPurify. This is how you swap in the native Sanitizer API.
- *   SANITIZER_CONFIG  passed to the sanitizer as its second argument.
- *   ALLOW_SCRIPT      function(code) =&gt; string|null - return a string to allow that exact code, else
- *   ALLOW_SCRIPT_URL  function(url)  =&gt; string|null - it's refused. Both refuse everything by default.
- *   ON_VIOLATION      function(code, detail) - fires on every notable event; handy for report-only.
- *   EXCLUDE           URL pattern(s) (string substring or RegExp) where DOMFortify stays fully inactive:
- *                     it claims no policy and injects no meta. Matched against location.href.
- *   URL_CONFIG        per-URL overrides; the first matching rule's keys override the base config.
- *   INJECT_META       opt-in (default off): best-effort inject of the enabling CSP &lt;meta&gt;. Works only
- *                     during the initial parse; a response header is strongly preferred. See README.
- *   META_DIRECTIVE    override the full trusted-types directive used when INJECT_META is on (advanced).
- *
- * The body below is condensed for reading - it shows the shape, not the byte-for-byte build. The
- * canonical, current source is src/fortify.ts in the repository.
- */
-((global) =&gt; {
-  'use strict';
-
-  // Grab natives up front so later prototype-pollution or clobbering can't swap them out underneath us.
-  const hasOwn = Object.prototype.hasOwnProperty;
-  const doc = global.document;
-  const own = (obj, key) =&gt; obj != null &amp;&amp; hasOwn.call(obj, key);
-  const cfg = (obj, key) =&gt; (own(obj, key) ? obj[key] : undefined); // reads own keys only, never the prototype
-  const clip = (s) =&gt; String(s).slice(0, 80);
-  const emsg = (e) =&gt; String(e?.message);
-
-  const TT = global.trustedTypes;
-  let installed = false;
-  let cachedStatus = null;
-
-  // Are we actually being enforced? Under enforcement with no default policy yet, a sink write throws.
-  // Run this BEFORE we install our policy, or it would always read as "off".
-  const enforcementActive = () =&gt; {
-    try {
-      doc.createElement('div').innerHTML = 'x';
-      return false;
-    } catch {
-      return true;
-    }
-  };
-
-  // Copy config off the caller's object, skipping keys that could pollute. Don't JSON-clone - that would
-  // corrupt RegExp and functions.
-  const shallowCopy = (obj) =&gt; {
-    const out = {};
-    for (const k in obj) {
-      if (hasOwn.call(obj, k) &amp;&amp; k !== '__proto__' &amp;&amp; k !== 'constructor' &amp;&amp; k !== 'prototype') out[k] = obj[k];
-    }
-    return out;
-  };
-
-  const init = (options = {}) =&gt; {
-    if (installed) return cachedStatus;
-    installed = true;
-
-    const onv = cfg(options, 'ON_VIOLATION');
-    const report = typeof onv === 'function' ? onv : () =&gt; {};
-
-    const status = {
-      version: '0.2.0',
-      ttSupported: !!TT,
-      enforcementActive: false,
-      defaultPolicyOwned: false,
-      sanitizerReady: false,
-      protected: false,
-      reason: '',
-    };
-    const done = (reason, code) =&gt; {
-      status.protected = status.defaultPolicyOwned &amp;&amp; status.enforcementActive &amp;&amp; status.sanitizerReady;
-      status.reason = reason;
-      if (code) report(code, status);
-      cachedStatus = Object.freeze(status);
-      return cachedStatus;
-    };
-
-    if (!TT || typeof TT.createPolicy !== 'function') {
-      return done('Trusted Types not supported; library is inert. Sinks are NOT routed.', 'tt-unsupported');
-    }
-
-    status.enforcementActive = enforcementActive();
-
-    // Resolve config once, reading own keys only so a polluted prototype can't supply a value - and, most
-    // importantly, can't loosen a refusal. Nothing here is re-read later, so runtime clobbering can't
-    // retarget the policy either.
-    let rawSan = cfg(options, 'SANITIZER');
-    if (rawSan === undefined) rawSan = global.DOMPurify;
-    // DOMPurify's export is itself a callable function (the factory) that also exposes .sanitize, so check
-    // for a .sanitize method FIRST - otherwise we'd wrap the factory and end up calling the wrong thing. A
-    // bare function (e.g. a Sanitizer-API adapter) has no .sanitize and falls through to the function case.
-    const DP =
-      rawSan &amp;&amp; typeof rawSan.sanitize === 'function' ? rawSan
-      : typeof rawSan === 'function' ? { sanitize: rawSan }
-      : null;
-    const sanitizeConfig = own(options, 'SANITIZER_CONFIG') ? shallowCopy(options.SANITIZER_CONFIG) : undefined;
-
-    // Sink openers count only if they're own functions, so prototype pollution can never open a sink.
-    const asCand = cfg(options, 'ALLOW_SCRIPT');
-    const asuCand = cfg(options, 'ALLOW_SCRIPT_URL');
-    const allowScript = typeof asCand === 'function' ? asCand : null;
-    const allowScriptURL = typeof asuCand === 'function' ? asuCand : null;
-
-    // Smoke-test once so a broken sanitizer fails loudly here, not silently on the first real write. It must
-    // return a string - a sanitizer that returns anything else would otherwise inject junk into every sink.
-    let sanitizerReady = false;
-    if (DP &amp;&amp; typeof DP.sanitize === 'function') {
-      try {
-        sanitizerReady = typeof DP.sanitize('&lt;b&gt;x&lt;/b&gt;', sanitizeConfig) === 'string';
-        if (!sanitizerReady) report('sanitizer-smoketest-failed', { error: 'sanitize() did not return a string' });
-      } catch (e) {
-        report('sanitizer-smoketest-failed', { error: emsg(e) });
-      }
-    }
-    status.sanitizerReady = sanitizerReady;
-
-    // `reentry` is true only while the sanitizer parses our input internally - inert and synchronous - so
-    // handing the raw string straight back to it is safe, and keeps us alive if its own sink re-enters us.
-    let reentry = false;
-    const sanitizeHTML = (s) =&gt; {
-      if (!sanitizerReady) {
-        report('sanitizer-unavailable', { sink: 'createHTML' });
-        return null; // fail closed
-      }
-      if (reentry) return s;
-      try {
-        reentry = true;
-        return DP.sanitize(s, sanitizeConfig);
-      } catch (e) {
-        report('sanitize-threw', { error: emsg(e) });
-        return null; // fail closed - never hand back raw markup on error
-      } finally {
-        reentry = false;
-      }
-    };
-
-    // Code has no safe subset, so refuse by default. A caller hook may allow specific values; if it throws
-    // or returns a non-string, we refuse.
-    const scriptHook = (kind, fn) =&gt; (s) =&gt; {
-      if (fn) {
-        let r;
-        try {
-          r = fn(s);
-        } catch (e) {
-          report('script-hook-threw', { sink: kind, error: emsg(e) });
-          return null; // fail closed
-        }
-        if (typeof r === 'string') {
-          report('script-sink-allowed', { sink: kind });
-          return r;
-        }
-      }
-      report('script-sink-refused', { sink: kind, sample: clip(s) });
-      return null;
-    };
-
-    const policyDef = {
-      createHTML: sanitizeHTML,
-      createScript: scriptHook('createScript', allowScript),
-      createScriptURL: scriptHook('createScriptURL', allowScriptURL),
-    };
-
-    // Did someone grab the default slot first? We can't evict them and won't vouch for them.
-    if (TT.defaultPolicy) {
-      return done(
-        'A default Trusted Types policy already exists; DOMFortify did NOT install and cannot vouch for it. ' +
-          'Load DOMFortify first, inline in &lt;head&gt;.',
-        'preexisting-default-policy',
-      );
-    }
-
-    let ours;
-    try {
-      ours = TT.createPolicy('default', policyDef);
-    } catch (e) {
-      // Throws when a default policy exists and 'allow-duplicates' is off - someone won the race.
-      return done(`createPolicy("default") threw (${emsg(e)}); another default policy won the race.`, 'default-policy-lost');
-    }
-
-    // With 'allow-duplicates' the create can succeed yet not be the active default.
-    if (TT.defaultPolicy &amp;&amp; TT.defaultPolicy !== ours) {
-      return done(
-        'Our policy was created but is not the active default (allow-duplicates race lost). ' +
-          'Remove "allow-duplicates" from the trusted-types directive.',
-        'default-policy-not-active',
-      );
-    }
-
-    status.defaultPolicyOwned = true;
-
-    if (!status.enforcementActive) {
-      return done(
-        'Default policy installed and slot locked, but TT enforcement is NOT active - sinks are not routed. ' +
-          'Deliver require-trusted-types-for (header preferred).',
-        'enforcement-inactive',
-      );
-    }
-    if (!sanitizerReady) {
-      return done(
-        'Enforcement active and slot locked, but the sanitizer is unavailable - HTML sinks will THROW ' +
-          '(failing closed). Bundle DOMPurify and load it before DOMFortify.',
-        'failing-closed',
-      );
-    }
-    return done(`Active: HTML sinks sanitized, script sinks ${allowScript || allowScriptURL ? 'partly allowed by hooks' : 'refused'}.`);
-  };
-
-  global.DOMFortify = Object.freeze({
-    init,
-    status: () =&gt; cachedStatus,
-  });
-
-  // Install the instant this file runs, to win the slot as early as possible. Configure beforehand via
-  // window.DOMFortifyConfig, or call DOMFortify.init(...) yourself.
-  init(global.DOMFortifyConfig || {});
-})(typeof window !== 'undefined' ? window : globalThis);
-</pre>
-    </section>
 
     <p class="footer-note">
       Demo for <code>fortify.js</code>. The removed-elements diff is for inspection, not a security signal. Inspired by
@@ -632,7 +357,7 @@ function renderInnerHTML(value) {
     var dirty = $('dirty'), clean = $('clean'), out = $('out'), wf = $('wf');
     var timing = $('timing'), removedCount = $('removedCount'), removedLog = $('removedLog');
     var runInfo = $('runInfo'), envEl = $('env'), xssEl = $('xss'), eventLog = $('eventLog');
-    var dirtyMeta = $('dirtyMeta'), cleanMeta = $('cleanMeta'), wfMeta = $('wfMeta'), ngMeta = $('ngMeta');
+    var dirtyMeta = $('dirtyMeta'), cleanMeta = $('cleanMeta'), wfMeta = $('wfMeta');
     var backendSel = $('backend'), sinkSel = $('sink');
 
     var dpver = '?'; try { dpver = DOMPurify.version || '?'; } catch (e) {}
@@ -663,6 +388,20 @@ function renderInnerHTML(value) {
       Object.keys(b.attrs).forEach(function (k) { var g = b.attrs[k] - (a.attrs[k] || 0); if (g > 0) items.push(k); });
       return items;
     }
+    // DOMPurify.removed is the authoritative list of what the last sanitize() call stripped: each entry is
+    // either { element } for a dropped node or { attribute, from } for a dropped attribute. Format it for
+    // the readout. Snapshot it right after the sink write - a later DOMParser pass resets the array.
+    function describeRemoved(list) {
+      return list.map(function (r) {
+        if (r && r.attribute) {
+          var owner = (r.from && r.from.nodeName) ? r.from.nodeName.toLowerCase() : '?';
+          return '-' + r.attribute.name + ' (on <' + owner + '>)';
+        }
+        var node = r && r.element ? r.element : r;
+        var name = node && node.nodeName ? String(node.nodeName).toLowerCase() : 'node';
+        return '<' + (name === '#comment' ? '!-- comment --' : name) + '>';
+      }).join('\n');
+    }
 
     // ---- status / environment, read straight from the library ----
     function st() { try { return (window.DOMFortify && DOMFortify.status && DOMFortify.status()) || {}; } catch (e) { return {}; } }
@@ -670,7 +409,9 @@ function renderInnerHTML(value) {
       var s = st(), b = $('banner'), txt = $('bannerText'), reason = $('bannerReason');
       if (s.protected) { b.className = 'banner ok'; txt.textContent = 'PROTECTED'; }
       else { b.className = 'banner bad'; txt.textContent = 'NOT PROTECTED'; }
-      reason.textContent = s.reason || '';
+      reason.textContent = window.__backendRequested === 'none'
+        ? 'Unprotected baseline: no CSP and no DOMFortify, so Trusted Types enforcement is OFF and the vulnerable sinks run raw - the payload executes.'
+        : (s.reason || '');
     }
     function renderEvents() {
       var ev = window.__ttEvents || [];
@@ -680,8 +421,10 @@ function renderInnerHTML(value) {
     }
     function updateEnv() {
       var s = st();
+      var off = window.__backendRequested === 'none';
+      var vpill = $('dfVersionPill'); if (vpill) vpill.textContent = off ? 'DOMFortify: off (unprotected)' : 'DOMFortify: v' + (s.version || '?');
       envEl.textContent =
-        'DOMFortify           : ' + (s.version || '?') + '\n' +
+        'DOMFortify           : ' + (off ? 'not loaded (unprotected baseline)' : (s.version || '?')) + '\n' +
         'sanitizer backend    : ' + window.__backendActual + (window.__sanitizerUnsupported ? '  (Sanitizer API requested but setHTML unsupported -> fell back)' : '') + '\n' +
         'DOMPurify            : v' + dpver + '\n' +
         'Trusted Types support: ' + (s.ttSupported ? 'yes' : 'no') + '\n' +
@@ -697,6 +440,14 @@ function renderInnerHTML(value) {
 
     // >>> THE VULNERABILITY: real XSS sinks. The library never edits these; the browser routes them.
     function clearOut() { out.replaceChildren(); clean.value = ''; cleanMeta.textContent = '0 chars'; resetXssNote(); }
+    // When the payload or sink changes without auto-run on, the last run's telemetry is stale. Blank it
+    // so the "Removed" readout never shows a count that no longer matches the current payload/sink.
+    function staleReadouts() {
+      removedCount.textContent = '-';
+      removedLog.textContent = 'Press "Run the sink" to inspect what was stripped.';
+      timing.textContent = '-';
+      runInfo.textContent = 'Payload or sink changed - press "Run the sink".';
+    }
 
     function afterHtmlRun(label, t, err) {
       var ms = (performance.now() - t).toFixed(2);
@@ -709,10 +460,27 @@ function renderInnerHTML(value) {
         removedLog.textContent = 'createHTML returned null -> the sink threw (fail-closed):\n' + err.message;
         runInfo.textContent = 'sink:    ' + label + '\noutcome: BLOCKED (' + err.message + ')';
       } else {
-        var removed = diffStrings(dirty.value, landed);
-        removedCount.textContent = removed.length;
-        removedLog.textContent = removed.length ? removed.join('\n') : 'nothing removed';
-        runInfo.textContent = 'sink:    ' + label + '\noutcome: sanitized by the library, then inserted';
+        // What did the sanitizer actually strip? For the DOMPurify backend, read its own removed[] - the
+        // exact, authoritative list from the sink write we just performed (snapshot it before any reparse).
+        // The native Sanitizer API exposes no such list, so fall back to the inert structural diff there.
+        // In the unprotected "no sanitizer" mode nothing is stripped: the raw markup landed unchanged.
+        if (window.__backendActual === 'DOMPurify') {
+          var rem = (window.DOMPurify && DOMPurify.removed) ? DOMPurify.removed.slice() : [];
+          removedCount.textContent = rem.length;
+          removedLog.textContent = rem.length ? describeRemoved(rem) : 'nothing removed';
+        } else if (window.__backendActual === 'Sanitizer API') {
+          var removed = [];
+          try { removed = diffStrings(dirty.value, landed); } catch (e) { removed = []; }
+          removedCount.textContent = removed.length;
+          removedLog.textContent = removed.length ? removed.join('\n') : 'nothing removed';
+        } else {
+          removedCount.textContent = 0;
+          removedLog.textContent = 'no sanitizer (unprotected) - raw markup inserted unchanged';
+        }
+        runInfo.textContent = 'sink:    ' + label + '\noutcome: ' +
+          (window.__backendActual === 'none (unprotected)'
+            ? 'inserted RAW - no sanitizer, no Trusted Types (the payload runs)'
+            : 'sanitized by the library, then inserted');
       }
       updateEnv();
     }
@@ -812,72 +580,6 @@ function renderInnerHTML(value) {
       updateEnv();
     }
 
-    // ---- legacy libraries: DOMFortify as a backstop for the common footguns ----
-    function failLib(name, extra) {
-      clean.value = ''; cleanMeta.textContent = '0 chars';
-      timing.textContent = '-'; removedCount.textContent = '-';
-      removedLog.textContent = name + ' is not available' + (extra ? ' (' + extra + ')' : '') +
-        '. A server CSP (script-src) or the CDN likely blocked it - self-host the library to run this test.';
-      runInfo.textContent = 'sink:    ' + name + ' test\noutcome: library not loaded';
-      updateEnv();
-    }
-    // "Used unsafe jQuery .html()? We got you." jQuery <3.5 routes .html() into innerHTML, so the default
-    // policy sanitizes it - including jQuery's own htmlPrefilter mXSS (CVE-2020-11022).
-    function runJqHtml() {
-      clearOut(); var t = performance.now(), err = null;
-      if (typeof window.jQuery !== 'function') { failLib('jQuery 3.4.1'); return; }
-      try { window.jQuery(out).html(dirty.value); } catch (e) { err = e; }
-      afterHtmlRun('jQuery 3.4.1  $(target).html(value)   [reaches innerHTML]', t, err);
-    }
-    // "Forgot ngSanitize? We got you." Without the module a dev wraps untrusted HTML in $sce.trustAsHtml to
-    // silence Angular's error, creating the hole. Angular still binds via innerHTML, so DOMFortify sanitizes it.
-    var ngReady = false, ngBootErr = null, ngApi = { compile: null, sce: null, scope: null };
-    function ngInit() {
-      if (ngReady) return true;
-      if (!(window.angular && window.angular.bootstrap)) return false;
-      try {
-        var host = document.getElementById('ngHost');
-        window.angular.module('dffDemo', []);            // note: NO 'ngSanitize' - that's the forgotten module
-        var inj = window.angular.bootstrap(host, ['dffDemo']);
-        ngApi.compile = inj.get('$compile');
-        ngApi.sce = inj.get('$sce');
-        ngApi.scope = inj.get('$rootScope');
-        ngReady = true;
-        return true;
-      } catch (e) { ngBootErr = e; return false; }
-    }
-    function runNgBindHtml() {
-      resetXssNote(); out.replaceChildren(); clean.value = '';
-      var host = document.getElementById('ngHost'); if (host) host.textContent = '';
-      var t = performance.now();
-      if (!(window.angular && window.angular.bootstrap)) { failLib('AngularJS 1.8'); return; }
-      if (!ngInit()) { failLib('AngularJS 1.8', 'bootstrap failed: ' + (ngBootErr && ngBootErr.message)); return; }
-      try {
-        // Build the directive node with setAttribute so the ng-bind-html attribute is not stripped by the
-        // sanitizer (innerHTML parsing of the template would route through DOMFortify and drop ng-* attrs).
-        var el = document.createElement('div');
-        el.setAttribute('ng-bind-html', 'dffHtml');
-        host.appendChild(el);
-        ngApi.scope.dffHtml = ngApi.sce.trustAsHtml(dirty.value);   // the footgun: "trust" untrusted input
-        ngApi.compile(el)(ngApi.scope);
-        ngApi.scope.$apply();
-        var landed = host.innerHTML;
-        clean.value = landed; cleanMeta.textContent = landed.length + ' chars';
-        timing.textContent = (performance.now() - t).toFixed(2) + 'ms';
-        var removed = diffStrings(dirty.value, landed);
-        removedCount.textContent = removed.length;
-        removedLog.textContent = removed.length ? removed.join('\n') : 'nothing removed';
-        runInfo.textContent = 'sink:    AngularJS 1.8  ng-bind-html (no ngSanitize, via $sce.trustAsHtml)\n' +
-          'outcome: Angular bound it via innerHTML -> sanitized by DOMFortify';
-      } catch (e) {
-        clean.value = ''; cleanMeta.textContent = '0 chars'; timing.textContent = '-'; removedCount.textContent = '-';
-        removedLog.textContent = String(e && e.message);
-        runInfo.textContent = 'sink:    AngularJS 1.8  ng-bind-html\noutcome: threw: ' + (e && e.message);
-      }
-      ngMeta.textContent = ngReady ? 'bootstrapped' : 'not bootstrapped';
-      updateEnv();
-    }
-
     function runApp() {
       var s = sinkSel.value;
       if (s === 'innerHTML') runInner();
@@ -885,8 +587,6 @@ function renderInnerHTML(value) {
       else if (s === 'documentWrite') runWrite();
       else if (s === 'scriptSrc') runScriptSrc();
       else if (s === 'evalStr') runEval();
-      else if (s === 'jqHtml') runJqHtml();
-      else if (s === 'ngBindHtml') runNgBindHtml();
     }
 
     // ---- wiring ----
@@ -923,10 +623,11 @@ function renderInnerHTML(value) {
     });
     function pulse(el, cls) { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
     $('runBtn').addEventListener('click', function () { pulse($('runBtn'), 'ran'); runApp(); pulse($('telemetry'), 'flash'); });
-    $('reset').addEventListener('click', function () { setPayload($('example').value); });
+    $('reset').addEventListener('click', function () { setPayload($('example').value); if ($('auto').checked) runApp(); else staleReadouts(); });
     $('clear').addEventListener('click', clearOut);
-    $('example').addEventListener('change', function (e) { setPayload(e.target.value); if ($('auto').checked) runApp(); });
-    dirty.addEventListener('input', function () { dirtyMeta.textContent = dirty.value.length + ' chars'; if ($('auto').checked) runApp(); });
+    $('example').addEventListener('change', function (e) { setPayload(e.target.value); if ($('auto').checked) runApp(); else staleReadouts(); });
+    sinkSel.addEventListener('change', function () { if ($('auto').checked) runApp(); else staleReadouts(); });
+    dirty.addEventListener('input', function () { dirtyMeta.textContent = dirty.value.length + ' chars'; if ($('auto').checked) runApp(); else staleReadouts(); });
 
     // ---- init ----
     setPayload('vectors');
