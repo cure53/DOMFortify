@@ -293,11 +293,19 @@ It's a retrofit, not magic. Know the edges (the
 - **Load it first.** Whoever registers the `default` policy first wins. If attacker code beats you to it,
   you're worse off than before. Don't add `'allow-duplicates'`.
 - **One realm at a time.** Each iframe is its own world and needs its own DOMFortify.
-- **Trusted Types sinks only.** DOMFortify sanitizes the Trusted Types HTML sinks. Other sinks - `style`
-  and CSS injection, `javascript:` URLs, and inline handlers - sit outside that contract, and their
-  behavior under enforcement varies by browser. Close them definitively with a real CSP alongside the
-  Trusted Types one, for example `script-src 'self'; object-src 'none'; base-uri 'none'` (no
-  `'unsafe-inline'`).
+- **Trusted Types sinks only.** DOMFortify covers exactly the Trusted Types sinks, and inside that
+  contract it is thorough. Every HTML sink (`innerHTML`, `outerHTML`, `insertAdjacentHTML`,
+  `document.write`, `Range.createContextualFragment`, `iframe.srcdoc`) is sanitized, so inline event
+  handlers and `javascript:` URLs that arrive as markup are stripped; every string-to-code sink
+  (`eval`, `Function`, string `setTimeout`/`setInterval`, `script.text`, `script.src`, Worker URLs) is
+  refused; and `setAttribute('onclick', ...)` is refused too, since the browser treats event-handler
+  content attributes as a TrustedScript sink. What sits outside the contract is only the residue no
+  Trusted Types policy can see: assigning a function to a handler property (`el.onclick = fn`, which
+  already presupposes script execution and is not reachable by markup injection), assigning a
+  `javascript:` URL straight to a property (`a.href = '...'`), and `style`/CSS injection. Close those
+  definitively with a real CSP alongside the Trusted Types one, for example
+  `script-src 'self'; object-src 'none'; base-uri 'none'` (no `'unsafe-inline'`). This boundary is
+  pinned by the `sink-boundary` e2e matrix.
 - **One sanitizer.** A bypass in the sanitizer is a bypass in everything it guards.
 - **It sanitizes a string, then the sink re-parses it.** The `default` policy returns sanitized HTML as a
   string that the browser parses again in context - the serialize/re-parse step that can re-open
