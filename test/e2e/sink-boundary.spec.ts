@@ -42,8 +42,9 @@ async function probe(page: Page, fixture: string): Promise<Probe> {
   await page.waitForTimeout(300); // let async sinks (string setTimeout, script.src) settle
   return page.evaluate(() => ({
     status:
-      (window as unknown as { DOMFortify?: { status?: () => Record<string, unknown> | null } }).DOMFortify?.status?.() ??
-      null,
+      (
+        window as unknown as { DOMFortify?: { status?: () => Record<string, unknown> | null } }
+      ).DOMFortify?.status?.() ?? null,
     fired: (window as unknown as { __fired: Record<string, boolean> }).__fired,
     matrix: (window as unknown as { __matrix: Probe['matrix'] }).__matrix,
   }));
