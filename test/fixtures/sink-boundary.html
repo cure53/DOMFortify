@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- No DEPLOY/EXPECT directives: deployment.spec.ts skips fixtures without them, so this boundary
+       fixture is owned solely by sink-boundary.spec.ts. Trusted Types on via meta, DOMFortify loaded
+       first so it claims the default policy. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="require-trusted-types-for 'script'; trusted-types default dompurify;">
+  <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+  <script>window.DOMFortifyConfig = {};</script>
+  <script src="/dist/fortify.js"></script>
+</head>
+<body>
+  <div id="sb"></div>
+  <script src="/test/fixtures/sink-boundary.runner.js"></script>
+</body>
+</html>

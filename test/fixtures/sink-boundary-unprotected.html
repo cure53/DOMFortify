@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- Canary baseline: no CSP, no DOMFortify, so Trusted Types enforcement is off and every covered
+       vector must EXECUTE here. That proves the vectors are real and the runner detects them; only
+       then is a "did not execute" on sink-boundary.html meaningful. -->
+</head>
+<body>
+  <div id="sb"></div>
+  <script src="/test/fixtures/sink-boundary.runner.js"></script>
+</body>
+</html>
