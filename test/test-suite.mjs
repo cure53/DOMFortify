@@ -7,11 +7,15 @@
  * live in `browser-suite.mjs`.
  */
 import QUnit from 'qunit';
+import { readFileSync } from 'node:fs';
 
 QUnit.config.autostart = false;
 
 let counter = 0;
-const MODULE_URL = new URL('../dist/fortify.es.mjs', import.meta.url);
+const MODULE_URL = new URL(
+  process.env.DOMFORTIFY_COV ? '../dist/fortify.cov.es.mjs' : '../dist/fortify.es.mjs',
+  import.meta.url,
+);
 
 // Fresh module instance each call, so the module-level "installed once" state never leaks between tests.
 function freshModule() {
@@ -540,5 +544,164 @@ QUnit.module('url targeting & meta injection', (hooks) => {
     assert.false(status.metaInjected, 'metaInjected false');
     assert.strictEqual(doc._writes.length, 0, 'no write');
     assert.strictEqual(doc._appended.length, 0, 'no append');
+  });
+});
+
+// --- reentrancy guard ----------------------------------------------------------------------------
+
+QUnit.module('reentrancy guard', (hooks) => {
+  hooks.afterEach(cleanup);
+
+  QUnit.test(
+    'a sanitizer that re-enters createHTML gets the raw string back; the outer call still sanitizes',
+    async (assert) => {
+      // A sanitizer without its own Trusted Types policy would, on writing to an internal HTML sink,
+      // re-enter our default policy. The guard must hand that re-entrant call the RAW string so the
+      // sanitizer can finish parsing inertly, instead of recursing forever - while the top-level call
+      // still returns sanitized output. holder.createHTML is wired only AFTER install, so the smoke test
+      // during init does not itself re-enter.
+      const holder = {};
+      let reentrantResult;
+      const reentrantSanitizer = {
+        sanitize(input) {
+          if (holder.createHTML) reentrantResult = holder.createHTML('<i>probe</i>');
+          return '<clean>' + input + '</clean>';
+        },
+      };
+      const { rules } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: reentrantSanitizer }, {});
+      holder.createHTML = rules.createHTML;
+
+      const out = rules.createHTML('<img src=x onerror=alert(1)>');
+      assert.strictEqual(
+        reentrantResult,
+        '<i>probe</i>',
+        're-entrant createHTML returns the raw string (guard active, no recursion)',
+      );
+      assert.strictEqual(
+        out,
+        '<clean><img src=x onerror=alert(1)></clean>',
+        'the top-level call returns sanitized output, not raw',
+      );
+
+      reentrantResult = undefined;
+      const out2 = rules.createHTML('<b>two</b>');
+      assert.strictEqual(
+        out2,
+        '<clean><b>two</b></clean>',
+        'the reentry flag resets between top-level calls (still sanitizes)',
+      );
+      assert.strictEqual(reentrantResult, '<i>probe</i>', 'and the guard still applies on the next call');
+    },
+  );
+});
+
+// --- public API surface (1.0 contract lock) ------------------------------------------------------
+// Snapshots the public surface so an unintended addition, removal, or rename - to the runtime exports,
+// the status() shape, the config keys, the per-URL override keys, or the violation codes - fails CI
+// loudly. When a change here is INTENTIONAL, update the matching baseline below in the same commit:
+// that diff is the deliberate, reviewable record of a public-contract change.
+
+const DTS = readFileSync(new URL('../dist/fortify.d.ts', import.meta.url), 'utf8');
+
+function interfaceKeys(name) {
+  const start = DTS.indexOf('interface ' + name + ' {');
+  const body = DTS.slice(start, DTS.indexOf('\n}', start));
+  return [...body.matchAll(/^ {4}([A-Za-z_]\w*)\??:/gm)].map((m) => m[1]).sort();
+}
+function unionLiterals(name) {
+  const line = DTS.match(new RegExp('type ' + name + ' = ([^;]+);'))[1];
+  return [...line.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+}
+function exportList(prefix) {
+  return DTS.match(new RegExp('export ' + prefix + '\\{([^}]+)\\}'))[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .sort();
+}
+
+QUnit.module('public API surface', (hooks) => {
+  hooks.afterEach(cleanup);
+
+  const EXPECTED_EXPORTS = ['DOMFortify', 'default', 'init', 'status'];
+  const EXPECTED_METHODS = ['init', 'status'];
+  const EXPECTED_STATUS_FIELDS = [
+    'defaultPolicyOwned',
+    'enforcementActive',
+    'excluded',
+    'metaInjected',
+    'protected',
+    'reason',
+    'sanitizerReady',
+    'ttSupported',
+    'version',
+  ];
+  const EXPECTED_CONFIG_KEYS = [
+    'ALLOW_SCRIPT',
+    'ALLOW_SCRIPT_URL',
+    'EXCLUDE',
+    'INCLUDE',
+    'INJECT_META',
+    'META_DIRECTIVE',
+    'ON_VIOLATION',
+    'SANITIZER',
+    'SANITIZER_CONFIG',
+    'URL_CONFIG',
+  ];
+  const EXPECTED_URLCONFIG_KEYS = ['ALLOW_SCRIPT', 'ALLOW_SCRIPT_URL', 'SANITIZER', 'SANITIZER_CONFIG', 'match'];
+  const EXPECTED_VIOLATION_CODES = [
+    'tt-unsupported',
+    'sanitizer-smoketest-failed',
+    'sanitizer-unavailable',
+    'sanitize-threw',
+    'script-hook-threw',
+    'script-sink-allowed',
+    'script-sink-refused',
+    'preexisting-default-policy',
+    'default-policy-lost',
+    'default-policy-not-active',
+    'enforcement-inactive',
+    'excluded-by-url',
+    'outside-include-scope',
+    'meta-injection-attempted',
+    'failing-closed',
+  ];
+  const EXPECTED_VALUE_EXPORTS = ['DOMFortify', 'DOMFortify as default', 'init', 'status'];
+  const EXPECTED_TYPE_EXPORTS = [
+    'DOMFortifyApi',
+    'DOMFortifyConfig',
+    'DOMFortifyStatus',
+    'SanitizeFn',
+    'Sanitizer',
+    'ScriptHook',
+    'ViolationCode',
+  ];
+  const hint = (what) =>
+    `public API changed: if intentional, update the ${what} baseline in this test (it is a 1.0 contract change)`;
+
+  QUnit.test('runtime exports and DOMFortify methods are exactly the public set', async (assert) => {
+    const { mod } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: { sanitize: (s) => String(s) } }, {});
+    assert.deepEqual(Object.keys(mod).sort(), EXPECTED_EXPORTS, hint('module exports'));
+    assert.deepEqual(Object.keys(mod.DOMFortify).sort(), EXPECTED_METHODS, hint('DOMFortify methods'));
+  });
+
+  QUnit.test('status() shape is exactly the documented set, and the runtime matches the .d.ts', async (assert) => {
+    const { status } = await install({ tt: makeTT(), doc: makeDoc(), DOMPurify: { sanitize: (s) => String(s) } }, {});
+    assert.deepEqual(Object.keys(status).sort(), EXPECTED_STATUS_FIELDS, hint('status fields'));
+    assert.deepEqual(interfaceKeys('DOMFortifyStatus'), EXPECTED_STATUS_FIELDS, hint('DOMFortifyStatus type'));
+  });
+
+  QUnit.test('config keys are exactly the public set', (assert) => {
+    assert.deepEqual(interfaceKeys('DOMFortifyConfig'), EXPECTED_CONFIG_KEYS, hint('DOMFortifyConfig keys'));
+    assert.deepEqual(interfaceKeys('UrlConfigRule'), EXPECTED_URLCONFIG_KEYS, hint('UrlConfigRule keys'));
+  });
+
+  QUnit.test('violation codes are exactly the public set', (assert) => {
+    assert.deepEqual(unionLiterals('ViolationCode'), EXPECTED_VIOLATION_CODES, hint('ViolationCode union'));
+  });
+
+  QUnit.test('the published export lists are exactly the public set', (assert) => {
+    assert.deepEqual(exportList(''), EXPECTED_VALUE_EXPORTS, hint('value exports'));
+    assert.deepEqual(exportList('type '), EXPECTED_TYPE_EXPORTS, hint('type exports'));
   });
 });
