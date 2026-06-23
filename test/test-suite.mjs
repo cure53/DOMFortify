@@ -705,3 +705,61 @@ QUnit.module('public API surface', (hooks) => {
     assert.deepEqual(exportList('type '), EXPECTED_TYPE_EXPORTS, hint('type exports'));
   });
 });
+
+// --- enforcement state & violation reporting -----------------------------------------------------
+
+QUnit.module('enforcement state & reporting', (hooks) => {
+  hooks.afterEach(cleanup);
+
+  QUnit.test(
+    'default policy owned but enforcement inactive -> not protected, reports enforcement-inactive',
+    async (assert) => {
+      // enforced:false means a string innerHTML assignment does NOT throw, i.e. the probe sees that
+      // require-trusted-types-for is not in effect. We own the slot but our sinks are not routed.
+      const events = [];
+      const { status } = await install(
+        { tt: makeTT(), doc: makeDoc({ enforced: false }), DOMPurify: { sanitize: (s) => String(s) } },
+        { ON_VIOLATION: (code) => events.push(code) },
+      );
+      assert.true(status.defaultPolicyOwned, 'policy is owned');
+      assert.false(status.enforcementActive, 'enforcement is not active');
+      assert.false(status.protected, 'not protected without enforcement');
+      assert.true(/not routed/i.test(status.reason), 'reason explains the sinks are not routed');
+      assert.true(events.includes('enforcement-inactive'), 'ON_VIOLATION received enforcement-inactive');
+    },
+  );
+
+  QUnit.test('a sanitizer that throws at sink time fails closed and reports sanitize-threw', async (assert) => {
+    // Passes the init smoke test (returns a string), then throws on a specific later input - so the
+    // throw is hit at createHTML time, not during resolution. The sink must return null, never raw.
+    const events = [];
+    const sanitizer = {
+      sanitize(s) {
+        if (s === 'BOOM') throw new Error('kaboom');
+        return '<ok>';
+      },
+    };
+    const { status, rules } = await install(
+      { tt: makeTT(), doc: makeDoc(), DOMPurify: sanitizer },
+      { ON_VIOLATION: (code) => events.push(code) },
+    );
+    assert.true(status.sanitizerReady, 'smoke test passed, sanitizer is ready');
+    assert.strictEqual(rules.createHTML('BOOM'), null, 'a throw at sink time returns null, never raw markup');
+    assert.true(events.includes('sanitize-threw'), 'ON_VIOLATION received sanitize-threw');
+  });
+
+  QUnit.test('a throwing ON_VIOLATION never breaks the policy', async (assert) => {
+    // The reporter is observability, never control flow: a hostile/buggy reporter that throws must be
+    // swallowed so it cannot turn a fail-closed sink into an exception or brick init.
+    const { status, rules } = await install(
+      { tt: makeTT(), doc: makeDoc(), DOMPurify: { sanitize: () => '<ok>' } },
+      {
+        ON_VIOLATION: () => {
+          throw new Error('reporter blew up');
+        },
+      },
+    );
+    assert.true(status != null, 'init still produced a status despite a throwing reporter');
+    assert.strictEqual(rules.createScript('alert(1)'), null, 'the refused script sink still returns null');
+  });
+});
