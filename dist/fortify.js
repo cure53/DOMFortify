@@ -1,4 +1,4 @@
-/*! DOMFortify 0.3.0 | (c) Cure53 and contributors | (MPL-2.0 OR Apache-2.0) */
+/*! DOMFortify 0.4.0 | (c) Cure53 and contributors | (MPL-2.0 OR Apache-2.0) */
 (function () {
     'use strict';
 
@@ -81,7 +81,7 @@
      *  - Fails closed: no sanitizer means sinks throw, never leak.
      *  - Only covers Trusted Types sinks; inline handlers / style / URL props stay open.
      */
-    const VERSION = '0.3.0';
+    const VERSION = '0.4.0';
     // Natives captured up front, so later prototype pollution or clobbering can't swap them out.
     const root = typeof globalThis !== 'undefined' ? globalThis : window;
     const doc = typeof document !== 'undefined' ? document : undefined;
