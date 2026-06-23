@@ -26,6 +26,10 @@ and [Risks and Footguns](https://github.com/cure53/DOMFortify/wiki/Risks-and-Foo
 Of course. [Play with DOMFortify](https://cure53.de/fortify) - throw payloads at a deliberately broken
 page and watch the browser neutralize them before they reach the DOM.
 
+There's also a [collection of standalone demos](demos/) you can read or serve locally, one per feature,
+including [URL scoping with EXCLUDE / URL_CONFIG](demos/url-config-demo.html) and the
+[INCLUDE allow-list](demos/include-demo.html).
+
 ## How it works
 
 Trusted Types lets a page register one `default` policy that the browser consults for every dangerous
@@ -198,6 +202,12 @@ Demo: [allow one script URL](demos/allow-script-url-demo.html).
 // a string is a substring match, a RegExp is test()ed, and either may be given as an array.
 window.DOMFortifyConfig = { EXCLUDE: ['/admin/', /\/internal\b/] };
 
+// INCLUDE: the allow-list complement - activate ONLY on matching URLs, inactive everywhere else.
+// EXCLUDE still wins for a URL that matches both. Same matching rules as EXCLUDE. Best paired with
+// page-scoped enforcement (e.g. INJECT_META): under a global enforcement header, non-included pages
+// have enforcement on but no default policy, so their sinks fail closed.
+window.DOMFortifyConfig = { INCLUDE: ['/admin/', '/account/'], INJECT_META: true };
+
 // URL_CONFIG: per-URL overrides; the FIRST matching rule's own keys override the base config. Handy
 // for a stricter (or looser) sanitizer config, sanitizer, or script hook on specific routes.
 window.DOMFortifyConfig = {
@@ -254,6 +264,22 @@ const s = DOMFortify.status();
 `protected` is true only when enforcement is on, DOMFortify owns the `default` policy, and the sanitizer
 passed its smoke test. `reason` explains the current state in one line. Demo: [status](demos/status-demo.html).
 
+## Browser and runtime support
+
+DOMFortify needs native Trusted Types enforcement to do its job, and as of 2026 that is broadly
+available: Trusted Types reached Baseline after Chrome and Edge (since v83, 2020), Safari (since v26,
+2025), and Firefox (2026) all shipped it. On any current major browser, DOMFortify works.
+
+| Environment                                | Behavior                                                                                                                                                                                                                                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Current Chrome / Edge / Safari / Firefox   | Full: claims the `default` policy, sanitizes HTML sinks, refuses script sinks.                                                                                                                                                                                                       |
+| Older browser versions without enforcement | Inert, and says so via `status()` (`ttSupported` / `enforcementActive` are `false`). It never claims protection it doesn't have.                                                                                                                                                     |
+| Need to cover pre-enforcement versions     | Pair with the [W3C Trusted Types tinyfill](https://github.com/w3c/trusted-types), so the `default` policy still runs there. The tinyfill cannot block a legacy raw-string sink without enforcement; it only guarantees the sanitize path runs for code that goes through the policy. |
+| Node                                       | Build and test only. DOMFortify is browser-only; there is no Node runtime mode.                                                                                                                                                                                                      |
+
+Each browsing context is separate: a cross-origin iframe needs its own DOMFortify. Worker contexts are
+out of scope.
+
 ## What it won't do
 
 It's a retrofit, not magic. Know the edges (the
@@ -267,8 +293,11 @@ It's a retrofit, not magic. Know the edges (the
 - **Load it first.** Whoever registers the `default` policy first wins. If attacker code beats you to it,
   you're worse off than before. Don't add `'allow-duplicates'`.
 - **One realm at a time.** Each iframe is its own world and needs its own DOMFortify.
-- **Trusted Types sinks only.** Inline handlers (`onclick=`), `style`, and `href` URLs aren't TT sinks.
-  Close those with a real `script-src` that drops `'unsafe-inline'`.
+- **Trusted Types sinks only.** DOMFortify sanitizes the Trusted Types HTML sinks. Other sinks - `style`
+  and CSS injection, `javascript:` URLs, and inline handlers - sit outside that contract, and their
+  behavior under enforcement varies by browser. Close them definitively with a real CSP alongside the
+  Trusted Types one, for example `script-src 'self'; object-src 'none'; base-uri 'none'` (no
+  `'unsafe-inline'`).
 - **One sanitizer.** A bypass in the sanitizer is a bypass in everything it guards.
 - **It sanitizes a string, then the sink re-parses it.** The `default` policy returns sanitized HTML as a
   string that the browser parses again in context - the serialize/re-parse step that can re-open

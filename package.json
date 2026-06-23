@@ -1,6 +1,6 @@
 {
   "name": "domfortify",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Retrofit Trusted Types onto a legacy page: claim the realm's default policy so old DOM-XSS sinks get sanitized without touching the code.",
   "license": "(MPL-2.0 OR Apache-2.0)",
   "homepage": "https://github.com/cure53/DOMFortify",
@@ -72,8 +72,10 @@
     "@rollup/plugin-replace": "^6.0.1",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.1.1",
+    "angular": "1.8.3",
     "dompurify": "^3.4.11",
     "fast-check": "^4.8.0",
+    "jquery": "3.4.1",
     "prettier": "^3.4.2",
     "qunit": "^2.23.1",
     "rimraf": "^6.0.1",

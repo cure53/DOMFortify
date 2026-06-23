@@ -100,6 +100,19 @@ window.DOMFortifyConfig = {
 };
 ```
 
+### Scoping with INCLUDE [Link](include-demo.html)
+
+The allow-list complement of `EXCLUDE`: activate ONLY on matching URLs and stay inactive elsewhere.
+Paired with `INJECT_META` so enforcement is scoped to the same pages, this is the gradual-rollout
+pattern - protect a few routes first, leave the rest untouched. Add `?admin` and reload.
+
+```js
+window.DOMFortifyConfig = {
+  INCLUDE: [/[?&]admin\b/], // active only here
+  INJECT_META: true, // and enforcement scoped to the same pages
+};
+```
+
 ### Meta injection (best-effort) [Link](meta-inject-demo.html)
 
 `INJECT_META` is an opt-in attempt to add the enabling CSP `<meta>` for pages that can set neither a
