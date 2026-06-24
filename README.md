@@ -1,8 +1,8 @@
 # DOMFortify
 
-[![npm](https://img.shields.io/npm/v/domfortify.svg)](https://www.npmjs.com/package/domfortify) [![License](https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg)](https://github.com/cure53/DOMFortify/blob/main/LICENSE) ![npm package minimized gzipped size](https://img.shields.io/bundlejs/size/domfortify?color=%233C1&label=gzip) [![Build & Test](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml) [![CodeQL](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/codeql-analysis.yml)
+[![npm](https://img.shields.io/npm/v/domfortify.svg)](https://www.npmjs.com/package/domfortify) [![License](https://img.shields.io/badge/license-MPL--2.0%20OR%20Apache--2.0-blue.svg)](https://github.com/cure53/DOMFortify/blob/main/LICENSE) [![Downloads](https://img.shields.io/npm/dm/domfortify.svg)](https://www.npmjs.com/package/domfortify) [![dependents](https://badgen.net/github/dependents-repo/cure53/domfortify?color=green&label=dependents)](https://github.com/cure53/DOMFortify/network/dependents) ![npm package minimized gzipped size](https://img.shields.io/bundlejs/size/domfortify?color=%233C1&label=gzip)
 
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13287/badge)](https://www.bestpractices.dev/projects/13287) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge)](https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify) [![Socket Badge](https://badge.socket.dev/npm/package/domfortify/latest)](https://badge.socket.dev/npm/package/domfortify/latest)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13287/badge)](https://www.bestpractices.dev/projects/13287) [![Build & Test](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/cure53/DOMFortify/actions/workflows/build-and-test.yml) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/cure53/DOMFortify/badge)](https://scorecard.dev/viewer/?uri=github.com/cure53/DOMFortify) [![Socket Badge](https://badge.socket.dev/npm/package/domfortify/latest)](https://badge.socket.dev/npm/package/domfortify/latest)
 
 DOMFortify turns Trusted Types on for a page and quietly takes over the browser's `default` policy, so
 that old, vulnerable code like `el.innerHTML = location.hash` gets sanitized before it ever reaches the
@@ -82,8 +82,8 @@ could reach. Pin both with SRI so a bad CDN day fails closed instead of open:
   crossorigin="anonymous"
 ></script>
 <script
-  src="https://cdn.jsdelivr.net/npm/domfortify@0.2.0/dist/fortify.min.js"
-  integrity="sha384-JXVhAk88k789tRT7GwtEyU9dJuJlu/Esv4Beq6FOrAXZYN59ykiQExs+vCBNNeYs"
+  src="https://cdn.jsdelivr.net/npm/domfortify@0.4.0/dist/fortify.min.js"
+  integrity="sha384-oaTzl0Zl3KdISWVHzJErLGpAIL2MYX+raPA5b9uhn/6Ljz117SCLRPKx8p8jhsyD"
   crossorigin="anonymous"
 ></script>
 ```
@@ -293,11 +293,19 @@ It's a retrofit, not magic. Know the edges (the
 - **Load it first.** Whoever registers the `default` policy first wins. If attacker code beats you to it,
   you're worse off than before. Don't add `'allow-duplicates'`.
 - **One realm at a time.** Each iframe is its own world and needs its own DOMFortify.
-- **Trusted Types sinks only.** DOMFortify sanitizes the Trusted Types HTML sinks. Other sinks - `style`
-  and CSS injection, `javascript:` URLs, and inline handlers - sit outside that contract, and their
-  behavior under enforcement varies by browser. Close them definitively with a real CSP alongside the
-  Trusted Types one, for example `script-src 'self'; object-src 'none'; base-uri 'none'` (no
-  `'unsafe-inline'`).
+- **Trusted Types sinks only.** DOMFortify covers exactly the Trusted Types sinks, and inside that
+  contract it is thorough. Every HTML sink (`innerHTML`, `outerHTML`, `insertAdjacentHTML`,
+  `document.write`, `Range.createContextualFragment`, `iframe.srcdoc`) is sanitized, so inline event
+  handlers and `javascript:` URLs that arrive as markup are stripped; every string-to-code sink
+  (`eval`, `Function`, string `setTimeout`/`setInterval`, `script.text`, `script.src`, Worker URLs) is
+  refused; and `setAttribute('onclick', ...)` is refused too, since the browser treats event-handler
+  content attributes as a TrustedScript sink. What sits outside the contract is only the residue no
+  Trusted Types policy can see: assigning a function to a handler property (`el.onclick = fn`, which
+  already presupposes script execution and is not reachable by markup injection), assigning a
+  `javascript:` URL straight to a property (`a.href = '...'`), and `style`/CSS injection. Close those
+  definitively with a real CSP alongside the Trusted Types one, for example
+  `script-src 'self'; object-src 'none'; base-uri 'none'` (no `'unsafe-inline'`). This boundary is
+  pinned by the `sink-boundary` e2e matrix.
 - **One sanitizer.** A bypass in the sanitizer is a bypass in everything it guards.
 - **It sanitizes a string, then the sink re-parses it.** The `default` policy returns sanitized HTML as a
   string that the browser parses again in context - the serialize/re-parse step that can re-open
