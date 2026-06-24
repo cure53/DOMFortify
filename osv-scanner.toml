@@ -4,7 +4,7 @@
 # supply-chain surface of its own. Any advisories OSV-Scanner reports come from
 # development / test / CI tooling in the lockfile, never from distributed code.
 #
-# The suppressions below are all for deliberately-vulnerable legacy libraries
+# Most suppressions below are for deliberately-vulnerable legacy libraries
 # pulled in ONLY as e2e test fixtures (test/fixtures/with-angularjs.html and
 # test/fixtures/with-jquery.html). They are intentionally old: the tests exist
 # to prove DOMFortify backstops their known DOM-XSS sinks, so "upgrade to fix"
@@ -72,3 +72,15 @@ reason = "jQuery 3.4.1 pinned pre-3.5 on purpose for the mXSS backstop test; dev
 id = "GHSA-jpcq-cgw6-v4j6"
 ignoreUntil = 2027-06-22
 reason = "jQuery 3.4.1 pinned pre-3.5 on purpose for the mXSS backstop test; dev-only, not shipped."
+
+# --- js-yaml 3.14.2 (transitive, via nyc coverage tooling) ------------------
+# Path: nyc -> @istanbuljs/load-nyc-config -> js-yaml@3.14.2. Not a fixture and
+# not deliberately old - just what nyc pins. dev-only (npm audit --omit=dev is
+# clean); never in the published zero-dependency runtime artifact. Cannot be
+# forward-fixed here: the patched js-yaml is >= 4.2.0, but load-nyc-config calls
+# the 3.x safeLoad API that 4.x removed, so an override breaks coverage. The DoS
+# also requires parsing attacker-controlled YAML; nyc only reads our own .nycrc.
+[[IgnoredVulns]]
+id = "GHSA-h67p-54hq-rp68"
+ignoreUntil = 2027-06-22
+reason = "js-yaml 3.14.2 via nyc coverage tooling; dev-only, not shipped, no forward fix (4.x drops the safeLoad API nyc uses)."

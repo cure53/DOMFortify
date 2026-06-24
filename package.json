@@ -1,6 +1,6 @@
 {
   "name": "domfortify",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Retrofit Trusted Types onto a legacy page: claim the realm's default policy so old DOM-XSS sinks get sanitized without touching the code.",
   "license": "(MPL-2.0 OR Apache-2.0)",
   "homepage": "https://github.com/cure53/DOMFortify",
@@ -65,7 +65,9 @@
     "test:browser": "playwright test --config config/playwright.config.ts",
     "test": "npm run typecheck && npm run build && npm run test:node && npm run test:fuzz",
     "prepublishOnly": "npm run build",
-    "test:fuzz": "node test/fuzz/policy.fuzz.js"
+    "test:fuzz": "node test/fuzz/policy.fuzz.js",
+    "build:cov": "rollup -c config/rollup.coverage.config.mjs",
+    "coverage": "rimraf .nyc_output coverage dist/fortify.cov.es.mjs && npm run build:cov && node scripts/coverage.mjs && nyc report --reporter=html --reporter=text --report-dir=coverage"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
@@ -76,11 +78,13 @@
     "dompurify": "^3.4.11",
     "fast-check": "^4.8.0",
     "jquery": "3.4.1",
+    "nyc": "^18.0.0",
     "prettier": "^3.4.2",
     "qunit": "^2.23.1",
     "rimraf": "^6.0.1",
     "rollup": "^4.28.1",
     "rollup-plugin-dts": "^6.1.1",
+    "rollup-plugin-istanbul": "^5.0.0",
     "tslib": "^2.8.1",
     "typescript": "^5.7.2"
   },
