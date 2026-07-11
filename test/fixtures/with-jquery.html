@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify fixture: jQuery 3.4.1 present</title>
+
+    <!--
+      VULN:   out.innerHTML = location.hash   (reflected DOM-XSS)
+      DEPLOY: meta
+      EXPECT: protected
+      Lesson: jQuery 3.4.1 is loaded under enforcement, AFTER DOMFortify owns the
+      default policy. jQuery runs internal innerHTML as it loads, which is routed
+      through DOMFortify's policy. jQuery itself may not finish initialising under
+      Trusted Types (its feature-detection can break on sanitized markup) - that is
+      inherent to TT with an old library, not a DOMFortify bug. What must hold is that
+      DOMFortify keeps protecting ordinary HTML sinks while jQuery's script runs: the
+      innerHTML sink below stays sanitized and the page stays protected.
+    -->
+
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="require-trusted-types-for 'script'; trusted-types default dompurify;"
+    />
+
+    <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+    <script src="/dist/fortify.js"></script>
+    <script src="/node_modules/jquery/dist/jquery.min.js"></script>
+  </head>
+  <body>
+    <h1>jQuery 3.4.1 present</h1>
+    <div id="out"></div>
+
+    <script>
+      document.getElementById('out').innerHTML = decodeURIComponent(location.hash.slice(1));
+    </script>
+  </body>
+</html>
