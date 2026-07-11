@@ -155,7 +155,7 @@ for (const v of VECTORS) {
   });
 }
 
-// --- Legacy-library regression: 0.4.0 must not break when heavy libraries are on the page ---------
+// --- Legacy-library regression: DOMFortify must not break when heavy libraries are on the page ----
 // jQuery and AngularJS run internal innerHTML (and AngularJS Function/eval) as they load under
 // enforcement, AFTER DOMFortify has claimed the default policy. The libraries themselves may not fully
 // initialise under Trusted Types - AngularJS needs Function/eval, which DOMFortify refuses by design,
