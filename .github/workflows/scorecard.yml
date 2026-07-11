@@ -7,11 +7,12 @@ name: Scorecard supply-chain security
 on:
   # For the Branch-Protection check; only the default branch is supported.
   branch_protection_rule:
-  # Keeps the Maintained check fresh and re-evaluates after CodeQL has settled.
+  # Keeps the Maintained check fresh and re-evaluates after CodeQL has settled. Weekly is enough:
+  # the score signals do not move day to day, and Friday lands just after the Thursday CodeQL run.
   schedule:
-    - cron: '24 17 * * *'
+    - cron: '24 17 * * 5'
   # Lets a maintainer trigger the first run (and re-runs) by hand from the Actions
-  # tab, instead of waiting for the daily cron - useful to publish the first report.
+  # tab, instead of waiting for the weekly cron - useful to publish the first report.
   workflow_dispatch:
   # NOTE: no 'push' trigger on purpose - running at merge time races the CodeQL
   # scan of the just-merged commit and makes the SAST check read as unchecked.
@@ -38,7 +39,7 @@ jobs:
         with:
           egress-policy: audit
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Run analysis
@@ -58,6 +59,6 @@ jobs:
           path: results.sarif
           retention-days: 5
       - name: Upload to code-scanning
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
         with:
           sarif_file: results.sarif

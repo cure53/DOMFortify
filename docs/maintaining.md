@@ -17,8 +17,8 @@ Covers the Branch-Protection and Code-Review checks:
 
 ## Secrets
 
-- `NPM_TOKEN` - a granular npm automation token scoped to publish this package only. Keep 2FA on the
-  npm account. Publishing runs from `publish.yml` via OIDC with `--provenance`.
+- npm publishing is done **manually** by a maintainer (`npm publish` from the release tag); there is
+  no publish workflow and no `NPM_TOKEN` repo secret. Keep 2FA on the npm account.
 - `SCORECARD_TOKEN` - a fine-grained PAT so the Scorecard workflow can read branch-protection status
   on a public repo. See the
   [scorecard-action docs](https://github.com/ossf/scorecard-action#authentication-with-fine-grained-pat-optional).
@@ -33,6 +33,16 @@ Covers the Branch-Protection and Code-Review checks:
 
 ## Releasing
 
-1. Bump the version in `package.json` (the build injects it in place of `__VERSION__`).
-2. Create a GitHub Release / tag. `publish.yml` builds, tests, and publishes with provenance.
-3. Publish the SRI hashes for `dist/fortify.min.js` in the release notes so integrators can pin them.
+1. Bump the version in `package.json` (the build injects it in place of `__VERSION__`), sync the
+   lockfile (`npm install --package-lock-only`), run `npm run build`, and commit the rebuilt `dist`
+   - CI (`Verify committed dist is in sync with src`) fails otherwise. If DOMPurify shipped, bump
+     the `dompurify` devDependency and refresh the pinned version and SRI hash in the README first.
+2. Land that via PR, then create a GitHub Release / tag on the release commit. On publish,
+   `sign-release.yml` checks out the tag, rebuilds, and attaches Sigstore bundles, and
+   `slsa-provenance.yml` attests build provenance for the same bytes.
+3. Publish manually from a clean checkout of the tag: `npm ci && npm publish`
+   (`prepublishOnly` rebuilds `dist`; the build is reproducible, so the published bytes match the
+   committed and attested ones).
+4. Publish the SRI hashes for `dist/fortify.min.js` in the release notes so integrators can pin
+   them (`openssl dgst -sha384 -binary dist/fortify.min.js | openssl base64 -A`), and verify the
+   hash in the README's CDN snippet matches the published artifact.

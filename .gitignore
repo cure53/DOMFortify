@@ -1,4 +1,5 @@
 node_modules/
+dist/fortify.cov.*
 coverage/
 .nyc_output/
 *.log

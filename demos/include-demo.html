@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOMFortify demo: Scoping with INCLUDE</title>
+    <link rel="stylesheet" href="lib/demo.css" />
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <!--
+      No static enforcement <meta> here on purpose. INCLUDE scopes WHERE DOMFortify activates, and it
+      only composes safely when enforcement is scoped the same way - so we let DOMFortify turn
+      enforcement on itself, per page, with INJECT_META. On an out-of-scope URL it stays inactive AND
+      injects nothing, so that page is simply left untouched (unprotected, not broken). This is the
+      gradual-rollout pattern: protect /admin first, leave everything else alone.
+    -->
+    <script>
+      window.DOMFortifyConfig = {
+        INCLUDE: [/[?&]admin\b/], // activate ONLY where the URL matches
+        INJECT_META: true, // and let DOMFortify scope enforcement to those same pages
+        SANITIZER_CONFIG: { ALLOWED_TAGS: ['b', 'i', 'p', 'a', '#text'], ALLOWED_ATTR: ['href'] },
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/gh/cure53/DOMFortify@main/dist/fortify.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav class="crumb"><a href="README.md">DOMFortify demos</a> / Scoping with INCLUDE</nav>
+      <h1>Scoping with INCLUDE</h1>
+      <p class="lead">
+        <code>INCLUDE</code> is the allow-list complement of <code>EXCLUDE</code>: DOMFortify activates
+        <em>only</em> on matching URLs and stays inactive everywhere else. This page keys off the query
+        string. <code>?admin</code> is in scope, so DOMFortify claims the policy, injects the enabling
+        CSP, and sanitizes. The baseline URL is out of scope, so DOMFortify stands down and leaves the
+        page untouched.
+      </p>
+
+      <div class="card">
+        <h2>Pick a URL</h2>
+        <p>
+          <a href="?">baseline (out of scope)</a> &nbsp;|&nbsp;
+          <a href="?admin">?admin (in scope)</a>
+        </p>
+        <p class="muted">Current: <code id="href"></code></p>
+        <p class="muted">excluded = <span id="excluded"></span> &nbsp; metaInjected =
+          <span id="meta"></span> &nbsp; protected = <span id="protected"></span></p>
+      </div>
+
+      <div class="card">
+        <h2>Same payload on both URLs</h2>
+        <textarea id="dirty">&lt;p&gt;&lt;b&gt;bold&lt;/b&gt; &lt;a href="https://example.com"&gt;link&lt;/a&gt;&lt;/p&gt;&lt;img src=x onerror="alert(1)"&gt;</textarea>
+        <button id="run">Run the sink</button>
+        <div class="muted">Resulting HTML:</div>
+        <pre id="html"></pre>
+        <p id="note"></p>
+      </div>
+    </main>
+    <script>
+      window.alert = () => {}; // so an out-of-scope, unprotected page cannot actually pop a dialog
+      const s = (window.DOMFortify && DOMFortify.status()) || {};
+      document.getElementById('href').textContent = location.href;
+      document.getElementById('excluded').textContent = String(!!s.excluded);
+      document.getElementById('meta').textContent = String(!!s.metaInjected);
+      document.getElementById('protected').textContent = String(!!s.protected);
+
+      const out = document.createElement('div');
+      const run = () => {
+        const note = document.getElementById('note');
+        try {
+          out.innerHTML = document.getElementById('dirty').value;
+          document.getElementById('html').textContent = out.innerHTML;
+          note.innerHTML = s.protected
+            ? '<span class="status ok">In INCLUDE scope: enforcement injected, sink sanitized.</span>'
+            : '<span class="status bad">Out of INCLUDE scope: DOMFortify stood down, so this page is unprotected (the raw markup went straight in). On a real site, /admin would be protected and this route left as-is.</span>';
+        } catch (e) {
+          document.getElementById('html').textContent = '';
+          note.innerHTML = '<span class="status bad">Sink threw: ' + e.message + '</span>';
+        }
+      };
+      document.getElementById('run').addEventListener('click', run);
+      run();
+    </script>
+  </body>
+</html>

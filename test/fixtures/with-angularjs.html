@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOMFortify fixture: AngularJS 1.8.3 present</title>
+
+    <!--
+      VULN:   out.innerHTML = location.hash   (reflected DOM-XSS)
+      DEPLOY: meta
+      EXPECT: protected
+      Lesson: AngularJS 1.8.3 is loaded under enforcement, AFTER DOMFortify owns the
+      default policy. AngularJS cannot fully run under require-trusted-types-for (its
+      expression compiler needs Function/eval, which DOMFortify refuses) - that is
+      expected and fine. What must NOT happen is DOMFortify failing closed for ordinary
+      HTML sinks because AngularJS is on the page: the innerHTML sink below stays
+      sanitized and the page stays protected.
+    -->
+
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="require-trusted-types-for 'script'; trusted-types default dompurify;"
+    />
+
+    <script src="/node_modules/dompurify/dist/purify.min.js"></script>
+    <script src="/dist/fortify.js"></script>
+    <script src="/node_modules/angular/angular.min.js"></script>
+  </head>
+  <body>
+    <h1>AngularJS 1.8.3 present</h1>
+    <div id="out"></div>
+
+    <script>
+      document.getElementById('out').innerHTML = decodeURIComponent(location.hash.slice(1));
+    </script>
+  </body>
+</html>
