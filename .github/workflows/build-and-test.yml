@@ -29,6 +29,8 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Check package.json file references
+        run: node scripts/check-referenced-files.mjs
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
