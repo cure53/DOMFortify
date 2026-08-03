@@ -28,7 +28,7 @@ jobs:
           node-version: 22
       - run: npm ci --ignore-scripts
       - run: npm run build
-      - uses: sigstore/gh-action-sigstore-python@5b79a39c381910c090341a2c9b0bf022c8b387e1 # v3.0.1
+      - uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.0.1
         with:
           inputs: dist/fortify.min.js dist/fortify.js
           # Re-uploads signed artefacts to the release that triggered this run.
