@@ -77,7 +77,7 @@ could reach. Pin both with SRI so a bad CDN day fails closed instead of open:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js"
+  src="https://cdn.jsdelivr.net/npm/dompurify@3.4.14/dist/purify.min.js"
   integrity="sha384-46dPGH1XlTmj7bc50bqLjTdORXs/3EP2QpA/6EWbelYWOY9VGp+87RT61S3Mcslb"
   crossorigin="anonymous"
 ></script>
