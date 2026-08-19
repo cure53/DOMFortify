@@ -77,13 +77,13 @@ could reach. Pin both with SRI so a bad CDN day fails closed instead of open:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js"
-  integrity="sha384-piCcpDdJ7qVeK4Tv8Z6Hpcr3ZBIgP16TxQTPVfsLFdZ5uDgwc3Y8Ho7oUnqf12qu"
+  src="https://cdn.jsdelivr.net/npm/dompurify@3.4.14/dist/purify.min.js"
+  integrity="sha384-46dPGH1XlTmj7bc50bqLjTdORXs/3EP2QpA/6EWbelYWOY9VGp+87RT61S3Mcslb"
   crossorigin="anonymous"
 ></script>
 <script
   src="https://cdn.jsdelivr.net/npm/domfortify@1.0.0/dist/fortify.min.js"
-  integrity="sha384-UTHngTnDjkP35mHLyvskA7klpBRoONpcOpENk+XQEi2plYIGb4WKpYIgci8vV3PG"
+  integrity="sha384-c6Zw5oPYE/XugJ3ElmZEwethwwBKRAKk5RCmtrXmHqlh2bZyvwmMrMo8Ok63rp9a"
   crossorigin="anonymous"
 ></script>
 ```

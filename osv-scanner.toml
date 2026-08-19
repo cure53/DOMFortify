@@ -30,6 +30,14 @@ id = "GHSA-4w4v-5hc9-xrr2"
 ignoreUntil = 2027-06-22
 reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
 
+# CVE-2026-11998 (SCE resource-URL policy bypass), published 2026-06-24 - after
+# this block was written. Same terminal situation: AngularJS is EOL, no fixed
+# release exists or will exist, and the fixture must stay vulnerable by design.
+[[IgnoredVulns]]
+id = "GHSA-7x27-g8rg-x87w"
+ignoreUntil = 2027-06-22
+reason = "AngularJS 1.8.3 EOL; dev-only test fixture, not in the published runtime artifact."
+
 [[IgnoredVulns]]
 id = "GHSA-j58c-ww9w-pwp5"
 ignoreUntil = 2027-06-22
