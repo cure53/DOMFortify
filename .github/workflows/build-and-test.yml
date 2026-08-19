@@ -2,9 +2,9 @@ name: Build & Test
 
 on:
   push:
-    branches: [main, '0.x']
+    branches: [main, '*.x']
   pull_request:
-    branches: [main, '0.x']
+    branches: [main, '*.x']
 
 # Default token to read-only; jobs widen only what they need.
 permissions:
