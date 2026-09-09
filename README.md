@@ -249,11 +249,40 @@ window.DOMFortifyConfig = {
 };
 ```
 
+The codes, so you can route them (all are typed as `ViolationCode` in the shipped `.d.ts`):
+
+| Code                          | When it fires                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `excluded-by-url`             | URL matched `EXCLUDE`; DOMFortify is inactive on this page                                             |
+| `outside-include-scope`       | `INCLUDE` is set and the URL does not match; inactive                                                  |
+| `tt-unsupported`              | No `trustedTypes` in this realm; inert                                                                 |
+| `meta-injection-attempted`    | `INJECT_META` ran; `detail.written` says whether it went through `document.write` during parse         |
+| `sanitizer-smoketest-failed`  | The sanitizer threw or did not return a string on the init-time probe                                  |
+| `preexisting-default-policy`  | Something else already owns `default`; DOMFortify did not install                                      |
+| `default-policy-lost`         | `createPolicy('default')` threw; another policy won the race                                           |
+| `default-policy-not-active`   | Policy created but not the active default (`'allow-duplicates'` race lost)                             |
+| `enforcement-inactive`        | Policy owned and slot locked, but `require-trusted-types-for` is not enforced; sinks are not routed    |
+| `failing-closed`              | Enforcement on and slot owned but no working sanitizer (HTML sinks will throw), or `init()` hit an unexpected error |
+| `sanitizer-unavailable`       | A sink was hit while the sanitizer is not ready; the write is refused                                  |
+| `sanitize-threw`              | The sanitizer threw on a real write; the write is refused                                              |
+| `script-sink-refused`         | A `createScript` / `createScriptURL` request was refused (`detail.sample` carries the first 80 chars)  |
+| `script-sink-allowed`         | A hook minted a value at a script sink                                                                 |
+| `script-hook-threw`           | `ALLOW_SCRIPT` / `ALLOW_SCRIPT_URL` threw; the request is refused                                      |
+
+The first ten fire during `init()`. The verdict codes among them (`excluded-by-url`,
+`outside-include-scope`, `tt-unsupported`, `preexisting-default-policy`, `default-policy-lost`,
+`default-policy-not-active`, `enforcement-inactive`, `failing-closed`) pass the frozen status object
+as `detail`; `meta-injection-attempted` and `sanitizer-smoketest-failed` carry their own detail. The
+last five fire per sink hit.
+
 Demo: [report-only monitoring](demos/report-only-demo.html).
 
 ### Reading the status
 
-`init()` returns, and `status()` later re-reads, a frozen snapshot of what actually happened:
+`init()` returns, and `status()` later re-reads, a frozen snapshot of what actually happened.
+`init()` is one-shot: the first call installs and every later call returns the same cached snapshot
+without re-reading the config. Before the first `init()`, `status()` returns `null` (relevant for the
+module builds, which do not auto-install).
 
 ```js
 const s = DOMFortify.status();
