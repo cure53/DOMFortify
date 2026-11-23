@@ -78,7 +78,7 @@
     "angular": "1.8.3",
     "dompurify": "^3.5.0",
     "fast-check": "^4.8.0",
-    "jquery": "4.0.0",
+    "jquery": "4.1.0",
     "nyc": "^18.0.0",
     "prettier": "^3.4.2",
     "qunit": "^3.0.0",
